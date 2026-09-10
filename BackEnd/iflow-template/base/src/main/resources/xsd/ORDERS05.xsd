@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="unqualified">
+  <xs:element name="ORDERS05">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="IDOC">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="E1EDK01" minOccurs="0">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="BELNR" type="xs:string" minOccurs="0"/>
+                    <xs:element name="BSART" type="xs:string" minOccurs="0"/>
+                    <xs:element name="CURCY" type="xs:string" minOccurs="0"/>
+                    <xs:element name="WAERK" type="xs:string" minOccurs="0"/>
+                    <xs:element name="ZTERM" type="xs:string" minOccurs="0"/>
+                    <xs:element name="INCO1" type="xs:string" minOccurs="0"/>
+                    <xs:element name="INCO2" type="xs:string" minOccurs="0"/>
+                    <xs:element name="KNREF" type="xs:string" minOccurs="0"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="E1EDK02" maxOccurs="unbounded" minOccurs="0">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="QUALF" type="xs:string" minOccurs="0"/>
+                    <xs:element name="BEDAT" type="xs:string" minOccurs="0"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="E1EDKA1" maxOccurs="unbounded" minOccurs="0">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="PARVW" type="xs:string" minOccurs="0"/>
+                    <xs:element name="PARTN" type="xs:string" minOccurs="0"/>
+                    <xs:element name="NAME1" type="xs:string" minOccurs="0"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="E1EDP01" maxOccurs="unbounded" minOccurs="0">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="POSEX" type="xs:string" minOccurs="0"/>
+                    <xs:element name="MENGE" type="xs:string" minOccurs="0"/>
+                    <xs:element name="MENEE" type="xs:string" minOccurs="0"/>
+                    <xs:element name="VPREI" type="xs:string" minOccurs="0"/>
+                    <xs:element name="NETWR" type="xs:string" minOccurs="0"/>
+                    <xs:element name="MWSKZ" type="xs:string" minOccurs="0"/>
+                    <xs:element name="WERKS" type="xs:string" minOccurs="0"/>
+                    <xs:element name="CURCY" type="xs:string" minOccurs="0"/>
+                    <xs:element name="MATKL" type="xs:string" minOccurs="0"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="E1EDP19" maxOccurs="unbounded" minOccurs="0">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="QUALF" type="xs:string" minOccurs="0"/>
+                    <xs:element name="IDTNR" type="xs:string" minOccurs="0"/>
+                    <xs:element name="KTEXT" type="xs:string" minOccurs="0"/>
+                    <xs:element name="MEINS" type="xs:string" minOccurs="0"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

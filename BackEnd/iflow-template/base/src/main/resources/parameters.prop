@@ -1,0 +1,12 @@
+#
+#Parameters for S4_to_Shroom_SalesOrder
+Sender_Endpoint_Path=/http/s4-shroom-salesorder
+S4_OData_BaseURL=https://your-s4-hostname/sap/opu/odata/sap/API_SALES_ORDER_SRV
+S4_OData_Credential=S4_ODATA_USER
+Shroom_Endpoint_URL=https://api.shroom.io/v1/orders/inbound
+Shroom_Credential=SHROOM_API_USER
+Alert_Email=integration-ops@yourcompany.com
+Mail_SMTP_Host=smtp.yourcompany.com
+Mail_Credential=MAIL_SMTP_CRED
+ENABLE_PAYLOAD_LOGGING=TRUE
+Shroom_Auth_Type=BasicAuthentication

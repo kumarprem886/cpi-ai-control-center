@@ -1,0 +1,11 @@
+Manifest-Version: 1.0
+SAP-RuntimeProfile: iflmap
+Bundle-SymbolicName: S4_to_Shroom_SalesOrder
+Bundle-Name: S4_to_Shroom_SalesOrder
+Bundle-Version: 1.0.0
+Bundle-ManifestVersion: 2
+Origin-Bundle-SymbolicName: S4_to_Shroom_SalesOrder
+SAP-NodeType: IFLMAP
+Origin-Bundle-Name: S4_to_Shroom_SalesOrder
+SAP-BundleType: IntegrationFlow
+

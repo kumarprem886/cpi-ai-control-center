@@ -1,0 +1,3 @@
+#Store metainfo properties
+#Tue Jun 09 07:07:11 UTC 2026
+description=S4 to Shroom\: Receives JSON from S4HANA via HTTPS, converts to XML, extracts SalesOrder ID, queries S4 OData for full order details, maps to ORDERS05 IDoc, sends to Shroom via HTTPS.

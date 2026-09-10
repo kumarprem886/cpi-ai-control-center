@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><parameters><parameter>
+    <key/>
+    <name>Sender_Endpoint_Path</name>
+    <type>xsd:string</type>
+    <isRequired>true</isRequired>
+    <constraint/>
+    <description>HTTPS endpoint path that S4HANA posts JSON to</description>
+    <additionalMetadata/>
+  </parameter><parameter>
+    <key/>
+    <name>S4_OData_BaseURL</name>
+    <type>xsd:string</type>
+    <isRequired>true</isRequired>
+    <constraint/>
+    <description>Base URL of the S4HANA OData service for SalesOrder</description>
+    <additionalMetadata/>
+  </parameter><parameter>
+    <key/>
+    <name>S4_OData_Credential</name>
+    <type>xsd:string</type>
+    <isRequired>true</isRequired>
+    <constraint/>
+    <description>Security Material alias for S4HANA OData Basic Auth</description>
+    <additionalMetadata/>
+  </parameter><parameter>
+    <key/>
+    <name>Shroom_Endpoint_URL</name>
+    <type>xsd:string</type>
+    <isRequired>true</isRequired>
+    <constraint/>
+    <description>Full HTTPS URL of the Shroom receiver endpoint</description>
+    <additionalMetadata/>
+  </parameter><parameter>
+    <key/>
+    <name>Shroom_Credential</name>
+    <type>xsd:string</type>
+    <isRequired>true</isRequired>
+    <constraint/>
+    <description>Security Material alias for Shroom HTTPS credential</description>
+    <additionalMetadata/>
+  </parameter><parameter>
+    <key/>
+    <name>Alert_Email</name>
+    <type>xsd:string</type>
+    <isRequired>false</isRequired>
+    <constraint/>
+    <description>Email address for failure alerts</description>
+    <additionalMetadata/>
+  </parameter><parameter>
+    <key/>
+    <name>Mail_SMTP_Host</name>
+    <type>xsd:string</type>
+    <isRequired>false</isRequired>
+    <constraint/>
+    <description>SMTP server host for alert emails</description>
+    <additionalMetadata/>
+  </parameter><parameter>
+    <key/>
+    <name>Mail_Credential</name>
+    <type>xsd:string</type>
+    <isRequired>false</isRequired>
+    <constraint/>
+    <description>Security Material alias for SMTP credential</description>
+    <additionalMetadata/>
+  </parameter><parameter>
+    <key/>
+    <name>ENABLE_PAYLOAD_LOGGING</name>
+    <type>xsd:string</type>
+    <isRequired>false</isRequired>
+    <constraint/>
+    <description>Set TRUE to enable payload logging in MPL</description>
+    <additionalMetadata/>
+  </parameter><param_references><reference attribute_category="S4HANA" attribute_id="ctype::Adapter/cname::HTTPS/vendor::SAP/version::1.1/attrId::address" attribute_uilabel="Address" param_key="Sender_Endpoint_Path"/><reference attribute_category="Shroom" attribute_id="ctype::Adapter/cname::HTTP/vendor::SAP/version::1.1/attrId::address" attribute_uilabel="Address" param_key="Shroom_Endpoint_URL"/><reference attribute_category="Shroom" attribute_id="ctype::Adapter/cname::HTTP/vendor::SAP/version::1.1/attrId::credentialName" attribute_uilabel="Credential Name" param_key="Shroom_Credential"/></param_references></parameters>

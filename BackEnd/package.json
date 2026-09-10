@@ -1,0 +1,25 @@
+{
+  "name": "sap-cpi-ai-backend",
+  "version": "3.0.0",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.17",
+    "archiver": "^8.0.0",
+    "axios": "^1.9.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "fs-extra": "^11.3.5",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.0",
+    "multer": "^2.1.1",
+    "node-cache": "^5.1.2",
+    "uuid": "^14.0.0",
+    "xlsx": "^0.18.5"
+  }
+}

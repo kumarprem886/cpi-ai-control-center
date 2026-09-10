@@ -1,0 +1,22 @@
+applications:
+  - name: cpi-ai-control-center
+    memory: 512M
+    disk_quota: 1024M
+    instances: 1
+    buildpacks:
+      - nodejs_buildpack
+    command: node server.js
+    env:
+      NODE_ENV: production
+      PORT: 8080
+      CPI_AUTH_MODE: oauth
+      AI_PROVIDER: groq
+      GROQ_MODEL: llama-3.3-70b-versatile
+      ALLOWED_ORIGINS: "*"
+# Secrets — set these via: cf set-env cpi-ai-control-center KEY value
+# CPI_BASE_URL
+# CPI_OAUTH_TOKEN_URL
+# CPI_OAUTH_CLIENT_ID
+# CPI_OAUTH_CLIENT_SECRET
+# GROQ_API_KEY
+# BACKEND_API_KEY

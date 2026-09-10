@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="unqualified">
+  <xs:element name="SalesOrderDetail">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="d">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="SalesOrder" type="xs:string" minOccurs="0"/>
+              <xs:element name="SalesOrderType" type="xs:string" minOccurs="0"/>
+              <xs:element name="SoldToParty" type="xs:string" minOccurs="0"/>
+              <xs:element name="ShipToParty" type="xs:string" minOccurs="0"/>
+              <xs:element name="SalesOrderDate" type="xs:string" minOccurs="0"/>
+              <xs:element name="RequestedDeliveryDate" type="xs:string" minOccurs="0"/>
+              <xs:element name="TransactionCurrency" type="xs:string" minOccurs="0"/>
+              <xs:element name="TotalNetAmount" type="xs:string" minOccurs="0"/>
+              <xs:element name="CustomerPaymentTerms" type="xs:string" minOccurs="0"/>
+              <xs:element name="SalesOrganization" type="xs:string" minOccurs="0"/>
+              <xs:element name="DistributionChannel" type="xs:string" minOccurs="0"/>
+              <xs:element name="Division" type="xs:string" minOccurs="0"/>
+              <xs:element name="IncotermsClassification" type="xs:string" minOccurs="0"/>
+              <xs:element name="IncotermsTransferLocation" type="xs:string" minOccurs="0"/>
+              <xs:element name="PurchaseOrderByCustomer" type="xs:string" minOccurs="0"/>
+              <xs:element name="to_Item" minOccurs="0">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="results" maxOccurs="unbounded" minOccurs="0">
+                      <xs:complexType>
+                        <xs:sequence>
+                          <xs:element name="SalesOrderItem" type="xs:string" minOccurs="0"/>
+                          <xs:element name="SalesOrderItemText" type="xs:string" minOccurs="0"/>
+                          <xs:element name="Material" type="xs:string" minOccurs="0"/>
+                          <xs:element name="MaterialGroup" type="xs:string" minOccurs="0"/>
+                          <xs:element name="OrderQuantity" type="xs:string" minOccurs="0"/>
+                          <xs:element name="OrderQuantityUnit" type="xs:string" minOccurs="0"/>
+                          <xs:element name="NetAmount" type="xs:string" minOccurs="0"/>
+                          <xs:element name="GrossAmount" type="xs:string" minOccurs="0"/>
+                          <xs:element name="TaxCode" type="xs:string" minOccurs="0"/>
+                          <xs:element name="Plant" type="xs:string" minOccurs="0"/>
+                          <xs:element name="StorageLocation" type="xs:string" minOccurs="0"/>
+                        </xs:sequence>
+                      </xs:complexType>
+                    </xs:element>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

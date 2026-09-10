@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+FrontEnd/node_modules/
+BackEnd/node_modules/
+
+# Environment & secrets — NEVER commit these
+BackEnd/.env
+.env
+
+# Build output
+FrontEnd/dist/
+BackEnd/public/
+BackEnd/generated/
+BackEnd/uploads/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
