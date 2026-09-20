@@ -14,11 +14,12 @@ import multer from 'multer';
 import { fileURLToPath } from 'url';
 import { ZipArchive } from 'archiver';
 
+import FormData from 'form-data';
 import { buildIflowFromTemplate } from './iflowTemplateBuilder.js';
 import { batchDeploy, batchUndeploy, whereUsed } from './cpiServices.js';
 import { buildSpecFromPrompt } from './iflowSpecBuilder.js';
 import { parseMappingTemplate } from './mappingParser.js';
-import { buildMappingZip, buildGroovyScript } from './mappingTemplateBuilder.js';
+import { buildMappingZip, buildGroovyScript, buildMappingWithAI } from './mappingTemplateBuilder.js';
 
 console.log('ZipArchive type =', typeof ZipArchive);
 
@@ -434,11 +435,18 @@ async function cachedGet(key, url) {
 // ======================================================
 
 async function fetchRuntimeArtifacts() {
-  const data = await cachedGet(
-    'runtime_artifacts',
-    '/api/v1/IntegrationRuntimeArtifacts'
-  );
-  return toArray(data);
+  try {
+    const data = await cachedGet('runtime_artifacts', '/api/v1/IntegrationRuntimeArtifacts');
+    return toArray(data);
+  } catch (err) {
+    const msg = String(err.response?.data?.error?.message || err.message || '');
+    // Trial tenants often don't have a provisioned runtime location — return empty gracefully
+    if (msg.includes('runtime location') || msg.includes('not supported')) {
+      console.warn('[CPI] IntegrationRuntimeArtifacts not available on this tenant:', msg);
+      return [];
+    }
+    throw err;
+  }
 }
 
 async function fetchPackages() {
@@ -638,9 +646,9 @@ async function getFailedMessages(top = 20) {
 
 async function getSummary() {
   const [packages, runtime, logs] = await Promise.all([
-    fetchPackages(),
-    fetchRuntimeArtifacts(),
-    fetchMessageProcessingLogs(Math.min(MPL_TOP, 200)),
+    fetchPackages().catch(() => []),
+    fetchRuntimeArtifacts().catch(() => []),
+    fetchMessageProcessingLogs(Math.min(MPL_TOP, 200)).catch(() => []),
   ]);
 
   const completed = logs.filter(
@@ -1508,6 +1516,35 @@ app.get('/api/health', async (_req, res) => {
 });
 
 // ======================================================
+// Mapping sheet preview (parse only, no ZIP)
+// ======================================================
+
+app.post('/api/mapping/preview-sheet', upload.single('templateFile'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
+    const rows = parseMappingTemplate(req.file.path, req.file.originalname);
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    return res.json({
+      success: true,
+      rows: rows.map(r => ({
+        sourceObject:       r.sourceObject,
+        sourceFieldName:    r.sourceFieldName,
+        technicalName:      r.sourceTechnicalName,
+        targetFieldName:    r.targetFieldName,
+        mandatory:          r.mandatory,
+        transformationRule: r.transformationRule,
+        comments:           r.comments,
+        classification:     r.transformationType,
+        constantValue:      r.constantValue,
+      })),
+    });
+  } catch (err) {
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    return handleError(res, err, 'POST /api/mapping/preview-sheet');
+  }
+});
+
+// ======================================================
 // Mapping generation route
 // ======================================================
 
@@ -1529,29 +1566,43 @@ app.post('/api/mapping/generate', upload.single('templateFile'), async (req, res
     const rows = parseMappingTemplate(req.file.path, req.file.originalname);
     console.log('[MAPPING] Parsed rows:', rows.length);
 
-    const direct   = rows.filter(r => r.transformationType === 'direct');
-    const constants = rows.filter(r => r.transformationType === 'constant');
-    const custom   = rows.filter(r => r.transformationType === 'custom');
+    // Ask AI to decide the best CPI node function for each mapping row
+    const aiDecisions = await buildMappingWithAI(rows, callGroqChat);
+    console.log('[MAPPING] AI decisions received:', aiDecisions.length);
 
-    const result = await buildMappingZip(mappingName, rows);
+    // Tally by AI-decided type for the response summary
+    const countByType = aiDecisions.reduce((acc, d) => {
+      acc[d.type] = (acc[d.type] || 0) + 1;
+      return acc;
+    }, {});
+    const direct   = aiDecisions.filter(d => d.type === 'direct');
+    const constants = aiDecisions.filter(d => d.type === 'constant');
+    const custom   = [];  // no custom rules — AI uses standard functions only
+
+    const result = await buildMappingZip(mappingName, rows, aiDecisions);
     console.log('[MAPPING] ZIP created:', result.fileName);
 
     if (req.file?.path && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
 
-    // Build mapping preview for the UI
-    const preview = rows.map(r => ({
-      sourceObject:      r.sourceObject,
-      sourceField:       r.sourceFieldName,
-      technicalName:     r.sourceTechnicalName,
-      targetField:       r.targetFieldName,
-      mandatory:         r.mandatory,
-      transformationType: r.transformationType,
-      constantValue:     r.constantValue,
-      ruleCode:          r.comments || r.transformationRule,
-      description:       r.sourceDescription,
-    }));
+    // Build mapping preview for the UI — merge AI decision per row
+    const decisionMap = {};
+    for (const d of aiDecisions) if (d.targetField) decisionMap[String(d.targetField).trim()] = d;
+
+    const preview = rows.map(r => {
+      const tgt = r.targetElementName || r.targetFieldName || '';
+      const d   = decisionMap[String(tgt).trim()];
+      return {
+        sourceObject:       r.sourceObject,
+        sourceField:        r.sourceFieldName || r.sourceElementName,
+        targetField:        r.targetFieldName || r.targetElementName,
+        aiFunction:         d?.type || r.transformationType || 'direct',
+        transformationRule: r.transformationRule || r.comments || '',
+        constantValue:      r.constantValue || (d?.type === 'constant' ? d?.value : ''),
+        mandatory:          r.mandatory,
+      };
+    });
 
     return res.json({
       success: true,
@@ -1563,6 +1614,8 @@ app.post('/api/mapping/generate', upload.single('templateFile'), async (req, res
         direct:    direct.length,
         constants: constants.length,
         custom:    custom.length,
+        aiDecided: true,
+        breakdown: countByType,
       },
       preview,
     });
@@ -1570,6 +1623,7 @@ app.post('/api/mapping/generate', upload.single('templateFile'), async (req, res
     if (req.file?.path && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
+    console.error('[MAPPING GENERATE ERROR]', error?.message, error?.stack);
     return handleError(res, error, 'POST /api/mapping/generate');
   }
 });
@@ -2209,25 +2263,6 @@ app.post('/api/assistant', async (req, res) => {
   }
 });
 
-// ======================================================
-// 404 + global error
-// ======================================================
-
-app.use((_req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Route not found',
-  });
-});
-
-app.use((err, _req, res, _next) => {
-  console.error('[GLOBAL ERROR]', err.stack || err.message);
-  res.status(500).json({
-    success: false,
-    error: 'Internal server error',
-  });
-});
-
 // ── Deploy / Undeploy iFlows ─────────────────────────────────────────────────
 app.post('/api/cpi/deploy', async (req, res) => {
   try {
@@ -2298,6 +2333,491 @@ if (fs.existsSync(FRONTEND_DIST)) {
     }
   });
 }
+
+// ====== NEW ARTIFACT & OPERATIONS ROUTES ======
+
+// -- 1. All Artifact Types per Package --
+
+app.get('/api/cpi/packages/:packageId/valuemappings', async (req, res) => {
+  try {
+    const { packageId } = req.params;
+    const { data } = await cpiClient.get(
+      `/api/v1/IntegrationPackages('${packageId}')/IntegrationDesigntimeArtifacts?$filter=ArtifactType eq 'ValueMapping'`
+    );
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/packages/:packageId/valuemappings');
+  }
+});
+
+app.get('/api/cpi/packages/:packageId/messagemappings', async (req, res) => {
+  try {
+    const { packageId } = req.params;
+    const { data } = await cpiClient.get(
+      `/api/v1/IntegrationPackages('${packageId}')/IntegrationDesigntimeArtifacts?$filter=ArtifactType eq 'MessageMapping'`
+    );
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/packages/:packageId/messagemappings');
+  }
+});
+
+app.get('/api/cpi/packages/:packageId/scriptcollections', async (req, res) => {
+  try {
+    const { packageId } = req.params;
+    const { data } = await cpiClient.get(
+      `/api/v1/IntegrationPackages('${packageId}')/IntegrationDesigntimeArtifacts?$filter=ArtifactType eq 'ScriptCollection'`
+    );
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/packages/:packageId/scriptcollections');
+  }
+});
+
+app.get('/api/cpi/packages/:packageId/functionlibraries', async (req, res) => {
+  try {
+    const { packageId } = req.params;
+    const { data } = await cpiClient.get(
+      `/api/v1/IntegrationPackages('${packageId}')/IntegrationDesigntimeArtifacts?$filter=ArtifactType eq 'FunctionLibrary'`
+    );
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/packages/:packageId/functionlibraries');
+  }
+});
+
+app.get('/api/cpi/packages/:packageId/all-artifacts', async (req, res) => {
+  try {
+    const { packageId } = req.params;
+    const artifactTypes = ['IFlow', 'ValueMapping', 'MessageMapping', 'ScriptCollection', 'FunctionLibrary'];
+
+    const responses = await Promise.allSettled(
+      artifactTypes.map((type) =>
+        type === 'IFlow'
+          ? cpiClient.get(`/api/v1/IntegrationPackages('${packageId}')/IntegrationDesigntimeArtifacts`)
+          : cpiClient.get(
+              `/api/v1/IntegrationPackages('${packageId}')/IntegrationDesigntimeArtifacts?$filter=ArtifactType eq '${type}'`
+            )
+      )
+    );
+
+    const combined = [];
+    for (let i = 0; i < artifactTypes.length; i++) {
+      const outcome = responses[i];
+      if (outcome.status === 'fulfilled') {
+        const items = outcome.value.data?.d?.results || outcome.value.data?.value || [];
+        for (const item of items) {
+          combined.push({ ...item, artifactType: artifactTypes[i] });
+        }
+      }
+    }
+
+    return res.json({ success: true, results: combined });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/packages/:packageId/all-artifacts');
+  }
+});
+
+// -- Deploy / Undeploy generic artifacts --
+
+app.post('/api/cpi/artifacts/deploy', async (req, res) => {
+  try {
+    const id = req.body?.id;
+    const version = req.body?.version || 'active';
+    if (!id) {
+      return res.status(400).json({ success: false, error: 'id is required' });
+    }
+    const { data } = await cpiClient.post(
+      `/api/v1/DeployIntegrationDesigntimeArtifact?Id='${id}'&Version='${version}'`,
+      null,
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    return res.json({ success: true, results: data });
+  } catch (error) {
+    return handleError(res, error, 'POST /api/cpi/artifacts/deploy');
+  }
+});
+
+app.delete('/api/cpi/artifacts/undeploy/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await cpiClient.delete(`/api/v1/IntegrationRuntimeArtifacts('${id}')`);
+    return res.json({ success: true, message: `Artifact '${id}' undeployed.` });
+  } catch (error) {
+    return handleError(res, error, 'DELETE /api/cpi/artifacts/undeploy/:id');
+  }
+});
+
+// -- 2. Security Materials --
+
+app.get('/api/cpi/security/secure-parameters', async (req, res) => {
+  try {
+    const { data } = await cpiClient.get('/api/v1/SecureParameters');
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/security/secure-parameters');
+  }
+});
+
+app.post('/api/cpi/security/secure-parameters', async (req, res) => {
+  try {
+    const { ParameterName, Description, Value } = req.body || {};
+    const { data } = await cpiClient.post('/api/v1/SecureParameters', { ParameterName, Description, Value }, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return res.json({ success: true, results: data });
+  } catch (error) {
+    return handleError(res, error, 'POST /api/cpi/security/secure-parameters');
+  }
+});
+
+app.put('/api/cpi/security/secure-parameters/:name', async (req, res) => {
+  try {
+    const { name } = req.params;
+    const { data } = await cpiClient.put(`/api/v1/SecureParameters('${name}')`, req.body, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return res.json({ success: true, results: data });
+  } catch (error) {
+    return handleError(res, error, 'PUT /api/cpi/security/secure-parameters/:name');
+  }
+});
+
+app.delete('/api/cpi/security/secure-parameters/:name', async (req, res) => {
+  try {
+    const { name } = req.params;
+    await cpiClient.delete(`/api/v1/SecureParameters('${name}')`);
+    return res.json({ success: true, message: `SecureParameter '${name}' deleted.` });
+  } catch (error) {
+    return handleError(res, error, 'DELETE /api/cpi/security/secure-parameters/:name');
+  }
+});
+
+app.get('/api/cpi/security/oauth-credentials', async (req, res) => {
+  try {
+    const { data } = await cpiClient.get('/api/v1/OAuthCredentials');
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/security/oauth-credentials');
+  }
+});
+
+app.post('/api/cpi/security/oauth-credentials', async (req, res) => {
+  try {
+    const { data } = await cpiClient.post('/api/v1/OAuthCredentials', req.body, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return res.json({ success: true, results: data });
+  } catch (error) {
+    return handleError(res, error, 'POST /api/cpi/security/oauth-credentials');
+  }
+});
+
+app.delete('/api/cpi/security/oauth-credentials/:name', async (req, res) => {
+  try {
+    const { name } = req.params;
+    await cpiClient.delete(`/api/v1/OAuthCredentials('${name}')`);
+    return res.json({ success: true, message: `OAuthCredential '${name}' deleted.` });
+  } catch (error) {
+    return handleError(res, error, 'DELETE /api/cpi/security/oauth-credentials/:name');
+  }
+});
+
+app.get('/api/cpi/security/certificate-mappings', async (req, res) => {
+  try {
+    const { data } = await cpiClient.get('/api/v1/CertificateUserMappings');
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/security/certificate-mappings');
+  }
+});
+
+app.get('/api/cpi/security/number-ranges', async (req, res) => {
+  try {
+    const { data } = await cpiClient.get('/api/v1/NumberRanges');
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/security/number-ranges');
+  }
+});
+
+app.post('/api/cpi/security/number-ranges', async (req, res) => {
+  try {
+    const { data } = await cpiClient.post('/api/v1/NumberRanges', req.body, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return res.json({ success: true, results: data });
+  } catch (error) {
+    return handleError(res, error, 'POST /api/cpi/security/number-ranges');
+  }
+});
+
+app.put('/api/cpi/security/number-ranges/:name', async (req, res) => {
+  try {
+    const { name } = req.params;
+    const { data } = await cpiClient.put(`/api/v1/NumberRanges('${name}')`, req.body, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return res.json({ success: true, results: data });
+  } catch (error) {
+    return handleError(res, error, 'PUT /api/cpi/security/number-ranges/:name');
+  }
+});
+
+app.delete('/api/cpi/security/number-ranges/:name', async (req, res) => {
+  try {
+    const { name } = req.params;
+    await cpiClient.delete(`/api/v1/NumberRanges('${name}')`);
+    return res.json({ success: true, message: `NumberRange '${name}' deleted.` });
+  } catch (error) {
+    return handleError(res, error, 'DELETE /api/cpi/security/number-ranges/:name');
+  }
+});
+
+app.get('/api/cpi/security/access-policies', async (req, res) => {
+  try {
+    const { data } = await cpiClient.get('/api/v1/AccessPolicies');
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/security/access-policies');
+  }
+});
+
+app.post('/api/cpi/security/access-policies', async (req, res) => {
+  try {
+    const { data } = await cpiClient.post('/api/v1/AccessPolicies', req.body, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return res.json({ success: true, results: data });
+  } catch (error) {
+    return handleError(res, error, 'POST /api/cpi/security/access-policies');
+  }
+});
+
+app.delete('/api/cpi/security/access-policies/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await cpiClient.delete(`/api/v1/AccessPolicies('${id}')`);
+    return res.json({ success: true, message: `AccessPolicy '${id}' deleted.` });
+  } catch (error) {
+    return handleError(res, error, 'DELETE /api/cpi/security/access-policies/:id');
+  }
+});
+
+// -- 3. Operational APIs --
+
+app.get('/api/cpi/datastores', async (req, res) => {
+  try {
+    const { data } = await cpiClient.get('/api/v1/DataStores');
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/datastores');
+  }
+});
+
+app.get('/api/cpi/datastores/:name/entries', async (req, res) => {
+  try {
+    const { name } = req.params;
+    const { data } = await cpiClient.get(`/api/v1/DataStores('${name}')/Entries`);
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/datastores/:name/entries');
+  }
+});
+
+app.delete('/api/cpi/datastores/:name/entries/:id', async (req, res) => {
+  try {
+    const { name, id } = req.params;
+    await cpiClient.delete(`/api/v1/DataStoreEntries(DataStoreName='${name}',Id='${id}')`);
+    return res.json({ success: true, message: `DataStore entry '${id}' deleted from '${name}'.` });
+  } catch (error) {
+    return handleError(res, error, 'DELETE /api/cpi/datastores/:name/entries/:id');
+  }
+});
+
+app.get('/api/cpi/message-store-entries', async (req, res) => {
+  try {
+    const top = req.query.$top ? `?$top=${encodeURIComponent(req.query.$top)}` : '';
+    const { data } = await cpiClient.get(`/api/v1/MessageStoreEntries${top}`);
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/message-store-entries');
+  }
+});
+
+app.get('/api/cpi/variables', async (req, res) => {
+  try {
+    const { data } = await cpiClient.get('/api/v1/Variables');
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/variables');
+  }
+});
+
+app.delete('/api/cpi/variables/:flowId/:varName', async (req, res) => {
+  try {
+    const { flowId, varName } = req.params;
+    await cpiClient.delete(`/api/v1/Variables(FlowId='${flowId}',VariableName='${varName}')`);
+    return res.json({ success: true, message: `Variable '${varName}' in flow '${flowId}' deleted.` });
+  } catch (error) {
+    return handleError(res, error, 'DELETE /api/cpi/variables/:flowId/:varName');
+  }
+});
+
+app.get('/api/cpi/tenant-configurations', async (req, res) => {
+  try {
+    const { data } = await cpiClient.get('/api/v1/TenantConfigurations');
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/tenant-configurations');
+  }
+});
+
+app.get('/api/cpi/jms-brokers', async (req, res) => {
+  try {
+    const { data } = await cpiClient.get('/api/v1/JmsBrokers');
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/jms-brokers');
+  }
+});
+
+app.get('/api/cpi/log-files', async (req, res) => {
+  try {
+    const { data } = await cpiClient.get('/api/v1/LogFiles');
+    const results = data?.d?.results || data?.value || [];
+    return res.json({ success: true, results });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/log-files');
+  }
+});
+
+// -- 4. Import ZIP to CPI --
+
+app.post('/api/cpi/import-zip', upload.single('zipFile'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'zipFile is required' });
+    }
+
+    const packageId   = String(req.body?.packageId   || '').trim();
+    const artifactId  = String(req.body?.artifactId  || '').trim();
+    const artifactName = String(req.body?.artifactName || '').trim();
+    const artifactType = String(req.body?.artifactType || 'IFlow').trim();
+
+    if (!packageId || !artifactId || !artifactName) {
+      return res.status(400).json({ success: false, error: 'packageId, artifactId, and artifactName are required' });
+    }
+
+    const zipBuffer = fs.readFileSync(req.file.path);
+    const zipBase64 = zipBuffer.toString('base64');
+
+    // Fetch CSRF token — required for OData write operations on SAP CPI
+    let csrfToken = '';
+    try {
+      const csrfRes = await cpiClient.get('/api/v1/IntegrationDesigntimeArtifacts?$top=1', {
+        headers: { 'X-CSRF-Token': 'Fetch' },
+      });
+      csrfToken = csrfRes.headers['x-csrf-token'] || '';
+    } catch { /* non-fatal */ }
+
+    const jsonHeaders = {
+      'Content-Type': 'application/json',
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+    };
+
+    // Check if artifact already exists
+    let artifactExists = false;
+    try {
+      await cpiClient.get(
+        `/api/v1/IntegrationDesigntimeArtifacts(Id='${encodeURIComponent(artifactId)}',Version='active')`
+      );
+      artifactExists = true;
+    } catch { /* 404 = doesn't exist */ }
+
+    let cpiResponse;
+    if (artifactExists) {
+      // UPDATE existing artifact — PUT ArtifactContent as base64 JSON
+      const r = await cpiClient.put(
+        `/api/v1/IntegrationDesigntimeArtifacts(Id='${encodeURIComponent(artifactId)}',Version='active')`,
+        { Name: artifactName, ArtifactContent: zipBase64 },
+        { headers: jsonHeaders }
+      );
+      cpiResponse = { status: r.status, data: r.data, action: 'update' };
+    } else {
+      // CREATE new artifact — POST with JSON + base64 ArtifactContent
+      try {
+        const r = await cpiClient.post(
+          `/api/v1/IntegrationDesigntimeArtifacts`,
+          { Id: artifactId, Name: artifactName, PackageId: packageId, ArtifactContent: zipBase64 },
+          { headers: jsonHeaders, maxBodyLength: Infinity, maxContentLength: Infinity }
+        );
+        cpiResponse = { status: r.status, data: r.data, action: 'create' };
+      } catch (createErr) {
+        const errStatus = createErr.response?.status;
+        const errData   = createErr.response?.data;
+        const errMsg    = errData?.error?.message?.value || errData?.message || errData?.error || createErr.message;
+        if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        if (errStatus === 403) {
+          return res.status(403).json({
+            success: false,
+            error: `SAP CPI does not allow creating new artifacts via API on this tenant. Please create a blank iFlow named "${artifactId}" inside package "${packageId}" in SAP Integration Suite first, then import again to overwrite it.`,
+          });
+        }
+        return res.status(errStatus || 502).json({ success: false, error: errMsg, cpiStatus: errStatus });
+      }
+    }
+
+    console.log('[import-zip] CPI response:', cpiResponse.action, cpiResponse.status);
+
+    // Clean up temp file
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    return res.json({
+      success: true,
+      message: `Artifact '${artifactId}' ${artifactExists ? 'updated' : 'created'} in package '${packageId}'.`,
+      cpiStatus: cpiResponse.status,
+      cpiData: cpiResponse.data,
+    });
+  } catch (error) {
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    return handleError(res, error, 'POST /api/cpi/import-zip');
+  }
+});
+
+// ====== END NEW ARTIFACT & OPERATIONS ROUTES ======
+
+// ======================================================
+// 404 + global error (must be AFTER all routes)
+// ======================================================
+
+app.use((_req, res) => {
+  res.status(404).json({ success: false, error: 'Route not found' });
+});
+
+app.use((err, _req, res, _next) => {
+  console.error('[GLOBAL ERROR]', err.stack || err.message);
+  res.status(500).json({ success: false, error: 'Internal server error' });
+});
 
 // ======================================================
 // Startup

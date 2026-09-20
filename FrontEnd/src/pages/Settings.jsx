@@ -233,9 +233,11 @@ export default function Settings({ addToast }) {
     CPI_OAUTH_TOKEN_URL: '', CPI_OAUTH_CLIENT_ID: '', CPI_OAUTH_CLIENT_SECRET: '',
     PORT: '8081', ALLOWED_ORIGINS: '',
   });
+  const [activeAuthMode, setActiveAuthMode] = useState('basic'); // what's actually saved/active in backend
   const [showSecrets, setShowSecrets] = useState({});
   const [configLoading, setConfigLoading] = useState(true);
   const [cpiSaving, setCpiSaving] = useState(false);
+  const [activatingMode, setActivatingMode] = useState(null); // 'basic' | 'oauth' while saving
   const [cpiDirty, setCpiDirty]   = useState(false);
   const [testing, setTesting]     = useState(false);
   const [testResult, setTestResult] = useState(null);
@@ -260,6 +262,7 @@ export default function Settings({ addToast }) {
         PORT: cfg.PORT || '8081',
         ALLOWED_ORIGINS: cfg.ALLOWED_ORIGINS || '',
       });
+      setActiveAuthMode(cfg.CPI_AUTH_MODE || 'basic');
       setProviders(prvRes.data.providers || []);
       setActiveProvider(prvRes.data.active || 'gemini');
     } catch { addToast('Failed to load settings', 'error'); }
@@ -268,10 +271,23 @@ export default function Settings({ addToast }) {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  const handleSetAuthMode = async (mode) => {
+    setActivatingMode(mode);
+    try {
+      await saveConfig({ ...cpiForm, CPI_AUTH_MODE: mode });
+      setCpiForm(p => ({ ...p, CPI_AUTH_MODE: mode }));
+      setActiveAuthMode(mode);
+      addToast(`${mode === 'oauth' ? 'OAuth 2.0' : 'Basic Auth'} set as active`, 'success');
+    } catch (err) {
+      addToast(err.response?.data?.error || err.message || 'Failed', 'error');
+    } finally { setActivatingMode(null); }
+  };
+
   const handleCpiSave = async () => {
     setCpiSaving(true);
     try {
       await saveConfig(cpiForm);
+      setActiveAuthMode(cpiForm.CPI_AUTH_MODE);
       addToast('CPI settings saved!', 'success');
       setCpiDirty(false);
     } catch (err) {
@@ -360,28 +376,45 @@ export default function Settings({ addToast }) {
                 <p className="text-xs text-slate-400 mt-1">Your SAP BTP CPI tenant URL</p>
               </div>
 
-              {/* Auth mode toggle */}
+              {/* Auth mode cards */}
               <div className="px-6 py-4">
                 <label className="block text-sm font-semibold text-slate-700 mb-3">Authentication Mode</label>
-                <div className="flex gap-3">
-                  <button type="button"
-                    onClick={() => { setCpiForm(p => ({ ...p, CPI_AUTH_MODE: 'basic' })); setCpiDirty(true); }}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
-                      cpiForm.CPI_AUTH_MODE === 'basic'
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }`}>
-                    <KeyRound size={14}/> Basic Auth
-                  </button>
-                  <button type="button"
-                    onClick={() => { setCpiForm(p => ({ ...p, CPI_AUTH_MODE: 'oauth' })); setCpiDirty(true); }}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
-                      cpiForm.CPI_AUTH_MODE === 'oauth'
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }`}>
-                    <ShieldCheck size={14}/> OAuth 2.0
-                  </button>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { mode: 'basic', icon: <KeyRound size={15}/>, label: 'Basic Auth', desc: 'Username + Password' },
+                    { mode: 'oauth', icon: <ShieldCheck size={15}/>, label: 'OAuth 2.0', desc: 'Client Credentials' },
+                  ].map(({ mode, icon, label, desc }) => {
+                    const isActive = activeAuthMode === mode;
+                    const isExpanded = cpiForm.CPI_AUTH_MODE === mode;
+                    const isActivating = activatingMode === mode;
+                    return (
+                      <div key={mode} onClick={() => { setCpiForm(p => ({ ...p, CPI_AUTH_MODE: mode })); setCpiDirty(true); }}
+                        className={`relative border rounded-xl p-4 cursor-pointer transition-all ${
+                          isExpanded ? 'border-indigo-300 bg-indigo-50/50' : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            {icon} {label}
+                          </div>
+                          {isActive && (
+                            <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                              <Zap size={9}/> Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400 mb-3">{desc}</p>
+                        {!isActive && (
+                          <button type="button"
+                            onClick={e => { e.stopPropagation(); handleSetAuthMode(mode); }}
+                            disabled={!!activatingMode}
+                            className="flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                            {isActivating ? <Loader2 size={11} className="animate-spin"/> : <Zap size={11}/>}
+                            {isActivating ? 'Setting…' : 'Set as Active'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

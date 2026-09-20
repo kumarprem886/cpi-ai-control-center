@@ -11,7 +11,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
 } from 'recharts';
-import { getDashboardStats, getMessages, aiGenerate, aiAnalyze, API_ORIGIN, deployIflows, undeployIflows, whereUsed } from '../api';
+import { getDashboardStats, getMessages, aiGenerate, aiAnalyze, API_ORIGIN, deployIflows, undeployIflows, whereUsed, importZipToCpi, apiClient } from '../api';
 
 const LINE_DATA = [
   { day:'May 13', success:12400, failed:820,  retry:340 },
@@ -51,9 +51,9 @@ const AI_CHIPS = [
   { label:'Generate Mapping',     icon:Map,         prompt:'Generate an XSLT or Groovy mapping script for SAP CPI with proper field transformations and namespace handling.' },
   { label:'Security Check',       icon:ShieldCheck, prompt:'Analyze and recommend security best practices for SAP CPI: OAuth2, certificate management, and credential stores.' },
   { label:'Performance Analysis', icon:TrendingUp,  prompt:'Analyze and optimize SAP CPI iFlow performance: message processing, splitter settings, and adapter tuning.' },
-  { label:'Deploy iFlows',        icon:Rocket,      prompt:'deploy iflows: iFlow1, iFlow2, iFlow3' },
-  { label:'Undeploy iFlows',      icon:DatabaseZap, prompt:'undeploy iflows: iFlow1, iFlow2' },
-  { label:'Where Used',           icon:KeyRound,    prompt:'where is alias MyCredential used' },
+  { label:'Deploy iFlows',        icon:Rocket,      prompt:'deploy the below iflows:\niFlow1\niFlow2\niFlow3' },
+  { label:'Undeploy iFlows',      icon:DatabaseZap, prompt:'undeploy the below iflows:\niFlow1\niFlow2' },
+  { label:'Where Used',           icon:KeyRound,    prompt:'in which iflow is credential MyAlias used?' },
 ];
 
 function KpiCard({ title, value, icon: Icon, iconBg, iconColor, trend, trendColor, delay }) {
@@ -184,6 +184,11 @@ export default function Dashboard({ addToast, navigate }) {
   const [aiLoading, setAiLoading]       = useState(false);
   const [commandResult, setCommandResult] = useState(null);
   const [showQuickActions, setShowQuickActions] = useState(true);
+  const [generatedZip, setGeneratedZip] = useState(null); // { fileName, downloadUrl }
+  const [pushModal, setPushModal] = useState(false);
+  const [packages, setPackages] = useState([]);
+  const [pushForm, setPushForm] = useState({ packageId: '', artifactId: '', artifactName: '', artifactType: 'IFlow' });
+  const [pushLoading, setPushLoading] = useState(false);
   const aiResultRef = useRef(null);
 
   const fetchStats = useCallback(async () => {
@@ -234,35 +239,81 @@ const handleGenerate = useCallback(async () => {
   setAiResult('');
   setCommandResult(null);
 
-  const prompt = aiPrompt.trim().toLowerCase();
+  const raw   = aiPrompt.trim();
+  const lower = raw.toLowerCase();
+
+  // Strip bullet/number prefixes and blank lines to extract a clean name list
+  const extractNames = (text) =>
+    text.split(/[\n,]+/)
+        .map(s => s.replace(/^[\s\-*•\d.)]+/, '').trim())
+        .filter(s => s.length > 0);
+
+  // Given the full prompt, find lines AFTER the line containing keyword,
+  // plus any names inline after ":" on that same line.
+  const extractListAfterKeyword = (text, keywordRe) => {
+    const lines = text.split('\n');
+    const idx   = lines.findIndex(l => keywordRe.test(l));
+    if (idx === -1) return [];
+    const cmdLine   = lines[idx];
+    const afterColon = cmdLine.includes(':') ? cmdLine.split(':').slice(1).join(':') : '';
+    const listText   = lines.slice(idx + 1).join('\n');
+    return extractNames((afterColon + '\n' + listText).trim());
+  };
 
   try {
-    // ── Deploy command ────────────────────────────────────────────────────────
-    const deployMatch = prompt.match(/^deploy\s+(iflows?:?\s*)?(.+)/i);
-    if (deployMatch && !prompt.startsWith('undeploy')) {
-      const raw = deployMatch[2];
-      const ids = raw.split(/[\n,]+/).map(s => s.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean);
-      const { data } = await deployIflows(ids);
-      setCommandResult({ type: 'deploy', ...data });
-      addToast?.(`Deploy: ${data.succeeded}/${data.total} succeeded`, data.failed > 0 ? 'error' : 'success');
-      return;
-    }
-
-    // ── Undeploy command ──────────────────────────────────────────────────────
-    const undeployMatch = prompt.match(/^undeploy\s+(iflows?:?\s*)?(.+)/i);
-    if (undeployMatch) {
-      const raw = undeployMatch[2];
-      const ids = raw.split(/[\n,]+/).map(s => s.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean);
+    // ── Undeploy command (check BEFORE deploy so "undeploy" doesn't match "deploy") ──
+    if (/\bundeploy\b/i.test(raw)) {
+      const ids = extractListAfterKeyword(raw, /\bundeploy\b/i);
+      if (ids.length === 0) {
+        setAiResult('⚠️ No iFlow names found. List them after "undeploy the below iflows:"');
+        return;
+      }
       const { data } = await undeployIflows(ids);
       setCommandResult({ type: 'undeploy', ...data });
       addToast?.(`Undeploy: ${data.succeeded}/${data.total} succeeded`, data.failed > 0 ? 'error' : 'success');
       return;
     }
 
+    // ── Deploy command ────────────────────────────────────────────────────────
+    if (/\bdeploy\b/i.test(raw)) {
+      const ids = extractListAfterKeyword(raw, /\bdeploy\b/i);
+      if (ids.length === 0) {
+        setAiResult('⚠️ No iFlow names found. List them after "deploy the below iflows:"');
+        return;
+      }
+      const { data } = await deployIflows(ids);
+      setCommandResult({ type: 'deploy', ...data });
+      addToast?.(`Deploy: ${data.succeeded}/${data.total} succeeded`, data.failed > 0 ? 'error' : 'success');
+      return;
+    }
+
     // ── Where-used command ────────────────────────────────────────────────────
-    const whereMatch = aiPrompt.match(/where(?:\s+is)?\s+(?:alias\s+)?["']?([^"'\n?]+?)["']?\s*(?:used|referenced|configured)?$/i);
-    if (whereMatch || prompt.includes('where used') || prompt.includes('where-used') || prompt.startsWith('where is')) {
-      const alias = whereMatch?.[1]?.trim() || aiPrompt.replace(/where.*?(alias\s+)?/i, '').replace(/used.*/i, '').trim();
+    // Patterns: "where is X used", "in which iflow is X used", "which iflows use X",
+    //           "where-used X", "find where X is used", "usage of X"
+    const wherePatterns = [
+      // Extract name immediately after material-type keyword: "security material OracleSSLCert has been used"
+      /(?:security\s+material|certificate|credential|alias)\s+["']?(\S+)["']?\s*(?:has\s+been|is|are|been)?\s*(?:used|referenced|configured)/im,
+      // "in which iflow is <alias> used/referenced/configured"
+      /in\s+which\s+iflow[s]?\s+(?:is\s+|are\s+)?(?:(?:alias|credential|certificate|security\s+material)\s+)?["']?(.+?)["']?\s*(?:used|referenced|configured|found)?\s*\??$/im,
+      // "where is <alias> used/referenced"
+      /where(?:\s+is)?\s+(?:(?:alias|credential|certificate|security\s+material)\s+)?["']?(.+?)["']?\s*(?:used|referenced|configured|found)\s*\??$/im,
+      // "which iflow(s) use/reference/contain <alias>"
+      /which\s+iflow[s]?\s+(?:use[sd]?|reference[sd]?|contain[s]?|ha(?:s|ve))\s+["']?(.+?)["']?\s*\??$/im,
+      // "where-used <alias>" or "where used <alias>"
+      /where[-\s]used\s+["']?(.+?)["']?\s*\??$/im,
+      // "find/search where <alias> is used"
+      /(?:find|search|look\s+for)\s+(?:where\s+)?["']?(.+?)["']?\s+(?:is\s+)?(?:used|referenced|configured)/im,
+      // "usage of <alias>"
+      /usage\s+of\s+["']?(.+?)["']?\s*\??$/im,
+    ];
+
+    let alias = null;
+    for (const p of wherePatterns) {
+      const m = raw.match(p);
+      if (m?.[1]?.trim()) { alias = m[1].trim(); break; }
+    }
+
+    if (alias) {
       const { data } = await whereUsed(alias);
       setCommandResult({ type: 'where-used', ...data });
       addToast?.(`Found ${data.count} iFlow(s) using "${alias}"`, 'success');
@@ -274,8 +325,10 @@ const handleGenerate = useCallback(async () => {
 
     if (data?.fileCreated && data?.downloadUrl) {
       triggerDownload(data.downloadUrl, data.fileName || 'iflow.zip');
+      setGeneratedZip({ fileName: data.fileName || 'iflow.zip', downloadUrl: data.downloadUrl });
       setAiResult(`ZIP file created successfully: ${data.fileName}\nDownload started automatically.`);
       addToast?.('ZIP file generated and download started', 'success');
+      apiClient.get('/packages').then(r => setPackages(r.data?.results || [])).catch(() => {});
       return;
     }
 
@@ -382,8 +435,14 @@ const handleGenerate = useCallback(async () => {
                   <span className="text-sm font-semibold text-slate-700">AI Response</span>
                 </div>
                 <div className="flex items-center gap-3">
+                  {generatedZip && (
+                    <button onClick={() => setPushModal(true)}
+                      className="flex items-center gap-1.5 text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors font-medium">
+                      <Upload size={12} /> Push to CPI
+                    </button>
+                  )}
                   {aiResult && <CopyButton text={aiResult} />}
-                  <button onClick={() => setAiResult('')} className="text-slate-400 hover:text-slate-600"><X size={14} /></button>
+                  <button onClick={() => { setAiResult(''); setGeneratedZip(null); }} className="text-slate-400 hover:text-slate-600"><X size={14} /></button>
                 </div>
               </div>
               {aiLoading ? (
@@ -405,6 +464,76 @@ const handleGenerate = useCallback(async () => {
           )}
         </AnimatePresence>
       </motion.div>
+
+      {/* Push to CPI Modal */}
+      <AnimatePresence>
+        {pushModal && (
+          <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={e => e.target === e.currentTarget && setPushModal(false)}>
+            <motion.div initial={{ scale:0.95, opacity:0 }} animate={{ scale:1, opacity:1 }} exit={{ scale:0.95, opacity:0 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Upload size={18} className="text-emerald-600" />
+                  <span className="text-lg font-bold text-slate-800">Push to CPI</span>
+                </div>
+                <button onClick={() => setPushModal(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+              </div>
+              <p className="text-xs text-slate-500 mb-4">Upload <code className="bg-slate-100 px-1 rounded">{generatedZip?.fileName}</code> to your CPI tenant</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-600 mb-1 block">Package *</label>
+                  <select value={pushForm.packageId} onChange={e => setPushForm(f => ({ ...f, packageId: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                    <option value="">Select package…</option>
+                    {packages.map(p => <option key={p.Id} value={p.Id}>{p.Name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-600 mb-1 block">Artifact ID *</label>
+                  <input value={pushForm.artifactId} onChange={e => setPushForm(f => ({ ...f, artifactId: e.target.value }))}
+                    placeholder="e.g. MyIntegrationFlow" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-600 mb-1 block">Artifact Name *</label>
+                  <input value={pushForm.artifactName} onChange={e => setPushForm(f => ({ ...f, artifactName: e.target.value }))}
+                    placeholder="e.g. My Integration Flow" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-600 mb-1 block">Artifact Type</label>
+                  <select value={pushForm.artifactType} onChange={e => setPushForm(f => ({ ...f, artifactType: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                    {['IFlow','ValueMapping','ScriptCollection','MessageMapping','FunctionLibrary'].map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-3 mt-5">
+                <button onClick={() => setPushModal(false)} className="flex-1 border border-slate-200 text-slate-600 rounded-lg py-2 text-sm hover:bg-slate-50">Cancel</button>
+                <button disabled={pushLoading || !pushForm.packageId || !pushForm.artifactId || !pushForm.artifactName}
+                  onClick={async () => {
+                    setPushLoading(true);
+                    try {
+                      const res = await fetch(generatedZip.downloadUrl.startsWith('http') ? generatedZip.downloadUrl : `${API_ORIGIN}${generatedZip.downloadUrl}`);
+                      const blob = await res.blob();
+                      const file = new File([blob], generatedZip.fileName, { type: 'application/zip' });
+                      await importZipToCpi(pushForm.packageId, pushForm.artifactId, pushForm.artifactName, pushForm.artifactType, file);
+                      addToast?.('Pushed to CPI successfully!', 'success');
+                      setPushModal(false);
+                      setPushForm({ packageId: '', artifactId: '', artifactName: '', artifactType: 'IFlow' });
+                    } catch (err) {
+                      addToast?.('Push failed: ' + (err.response?.data?.error || err.message), 'error');
+                    } finally { setPushLoading(false); }
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
+                  {pushLoading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                  {pushLoading ? 'Pushing…' : 'Push to CPI'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Feature Cards */}
       <motion.div initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.25 }}

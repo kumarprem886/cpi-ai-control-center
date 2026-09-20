@@ -42,8 +42,39 @@ export const generateMappingZip = (formData) =>
     headers: { 'Content-Type': 'multipart/form-data' }
   });
 
+export const previewMappingSheet = (formData) =>
+  api.post('/mapping/preview-sheet', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+
 export const deployIflows   = (iflowIds) => api.post('/cpi/deploy',   { iflowIds });
 export const undeployIflows = (iflowIds) => api.post('/cpi/undeploy', { iflowIds });
 export const whereUsed      = (alias)    => api.get('/cpi/where-used', { params: { alias } });
+
+export async function getArtifactsByType(packageId, type) {
+  // type is 'valuemappings', 'messagemappings', 'scriptcollections', 'functionlibraries', 'all-artifacts'
+  const { data } = await api.get(`/cpi/packages/${packageId}/${type}`);
+  return data.results || [];
+}
+
+export async function deployArtifact(id, version = 'active') {
+  const { data } = await api.post('/cpi/artifacts/deploy', { id, version });
+  return data;
+}
+
+export const apiClient = api;
+
+export async function importZipToCpi(packageId, artifactId, artifactName, artifactType, file) {
+  const formData = new FormData();
+  formData.append('zipFile', file);
+  formData.append('packageId', packageId);
+  formData.append('artifactId', artifactId);
+  formData.append('artifactName', artifactName);
+  formData.append('artifactType', artifactType);
+  const { data } = await api.post('/cpi/import-zip', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
 
 export default api;

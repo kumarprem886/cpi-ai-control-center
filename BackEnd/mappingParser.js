@@ -32,7 +32,7 @@ const HEADER_ALIASES = {
   fieldDescription: ['field description', 'description'],
   targetFieldName: ['target field name', 'target field', 'target name'],
   mandatory: ['mandatory'],
-  transformationRules: ['transformation rules', 'transformation rule', 'logic'],
+  transformationRules: ['transformation rules', 'transformation rule', 'transormation rules', 'transormation rule', 'logic', 'transformation'],
   asIsIdocField: [
     'as-is idoc field (for reference)',
     'as is idoc field (for reference)',
@@ -111,8 +111,8 @@ function classifyTransformation(rule, comments) {
     if (c) {
       // Pure number → hardcoded constant
       if (/^\d+(\.\d+)?$/.test(c)) return 'constant';
-      // Named rule code like TR01, TR_01, RULE1, etc.
-      if (/^(TR|RULE|UDF|FUNC|MAP)\d*/i.test(c)) return 'custom';
+      // Named rule code like RULE1, UDF01, etc.
+      if (/^(RULE|UDF|FUNC|MAP)\d*/i.test(c)) return 'custom';
       // Short code-like value (no spaces, all caps/numbers) → could be constant
       if (/^[A-Z0-9_-]{1,10}$/.test(c) && c !== c.toLowerCase()) return 'constant';
     }
@@ -122,10 +122,12 @@ function classifyTransformation(rule, comments) {
   // Transformation rule column itself has a value
   // Pure number → hardcoded constant
   if (/^\d+(\.\d+)?$/.test(r)) return 'constant';
-  // Named rule
-  if (/^(TR|RULE|UDF|FUNC|MAP)\d*/i.test(r)) return 'custom';
+  // Named UDF rule
+  if (/^(RULE|UDF|FUNC|MAP)\d*/i.test(r)) return 'custom';
+  // Short code with no spaces (e.g. TR01, 315, STO) → constant value
+  if (/^[A-Z0-9_-]{1,10}$/i.test(r.trim())) return 'constant';
 
-  // Fallback — has some rule text
+  // Fallback — descriptive rule text → custom
   return 'custom';
 }
 

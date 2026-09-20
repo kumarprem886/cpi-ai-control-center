@@ -3,7 +3,7 @@ import path from 'path';
 import fse from 'fs-extra';
 import { ZipArchive } from 'archiver';
 import { v4 as uuidv4 } from 'uuid';
-import { STEP_LIBRARY } from './iflowStepLibrary.js';
+import { STEP_LIBRARY, STEP_ALIASES } from './iflowStepLibrary.js';
 
 const TEMPLATE_BASE_DIR = path.join(process.cwd(), 'iflow-template', 'base');
 const GENERATED_DIR = path.join(process.cwd(), 'generated');
@@ -30,6 +30,7 @@ export async function buildIflowFromTemplate(spec) {
   await fse.copy(TEMPLATE_BASE_DIR, tempProjectDir);
 
   patchRootFiles(tempProjectDir, spec, iflowName);
+  reconcileMappingNames(tempProjectDir, spec);
   patchIflowFile(tempProjectDir, spec, iflowName);
   patchMappingAndAssets(tempProjectDir, spec);
   patchScripts(tempProjectDir, spec);
@@ -129,6 +130,37 @@ function patchMetainfo(projectDir, description) {
 
 function escapeJavaProp(value) {
   return String(value || '').replace(/:/g, '\\:');
+}
+
+// A Mapping step's mappinguri must resolve to a .mmap that actually ships in
+// the artifact, or CPI rejects the flow on import. When the caller names a
+// mapping but supplies no content for it, point the step at the mapping that
+// really is present rather than emitting a dangling reference.
+function reconcileMappingNames(projectDir, spec) {
+  const steps = (spec.steps || []).filter((st) => st.mappingName);
+  if (!steps.length) return;
+
+  const mappingDir = path.join(projectDir, 'src', 'main', 'resources', 'mapping');
+  const supplied = spec.mapping?.mmapFile && spec.mapping?.mmapContent
+    ? spec.mapping.mmapFile.replace(/\.mmap$/i, '')
+    : null;
+
+  const present = fs.existsSync(mappingDir)
+    ? fs.readdirSync(mappingDir).filter((f) => f.endsWith('.mmap')).map((f) => f.replace(/\.mmap$/i, ''))
+    : [];
+
+  const available = supplied ? [supplied, ...present] : present;
+
+  for (const st of steps) {
+    if (available.includes(st.mappingName)) continue;
+    if (!available.length) {
+      console.warn('[IFLOW] step "' + st.name + '" references mapping ' + st.mappingName + ' but no .mmap is available - dropping the reference');
+      delete st.mappingName;
+      continue;
+    }
+    console.warn('[IFLOW] no content supplied for mapping ' + st.mappingName + ' - pointing step "' + st.name + '" at ' + available[0] + ' instead');
+    st.mappingName = available[0];
+  }
 }
 
 function patchIflowFile(projectDir, spec, iflowName) {
@@ -342,7 +374,26 @@ function applyExceptionSubprocess(xml, exceptionSubprocess) {
   return xml.replace('<!-- @@EXCEPTION_SUBPROCESS@@ -->', block);
 }
 
-function generateProcessModel(steps) {
+// Drop steps with no verified definition and resolve legacy aliases, so the
+// layout loop sees a dense list and position-derived flow ids stay consistent.
+function resolveSteps(rawSteps) {
+  return (rawSteps || []).reduce((acc, step) => {
+    const stepType = STEP_ALIASES[step.type] || step.type;
+    const lib = STEP_LIBRARY[stepType];
+    if (!lib) {
+      console.warn('[IFLOW] no verified definition for step type ' + step.type + ' - skipped');
+      return acc;
+    }
+    if (lib.thin) {
+      console.warn('[IFLOW] step type ' + stepType + ' rests on thin corpus evidence - verify it renders in CPI');
+    }
+    acc.push({ step, stepType, lib });
+    return acc;
+  }, []);
+}
+
+function generateProcessModel(rawSteps) {
+  const steps = resolveSteps(rawSteps);
   const processSteps = [];
   const sequenceFlows = [];
   const shapes = [];
@@ -385,14 +436,15 @@ function generateProcessModel(steps) {
     };
   }
 
-  steps.forEach((step, index) => {
-    const lib = STEP_LIBRARY[step.type];
-    if (!lib) return;
+  steps.forEach(({ step, stepType, lib }, index) => {
 
-    const elementId =
-      lib.stepType === 'serviceTask'
-        ? `ServiceTask_${step.type}_${index + 1}`
-        : `CallActivity_${step.type}_${index + 1}`;
+    const ID_PREFIX = {
+      serviceTask: 'ServiceTask',
+      exclusiveGateway: 'ExclusiveGateway',
+      parallelGateway: 'ParallelGateway',
+      callActivity: 'CallActivity'
+    };
+    const elementId = `${ID_PREFIX[lib.stepType] || 'CallActivity'}_${stepType}_${index + 1}`;
 
     const x = firstStepX + index * stepGap;
     const width = lib.width || 100;
@@ -408,8 +460,9 @@ function generateProcessModel(steps) {
                   .map(([k, v]) => `<ifl:property><key>${k}</key><value>${escapeXml(v)}</value></ifl:property>`)
                   .join('')}
                 ${step.scriptFile ? `<ifl:property><key>script</key><value>${escapeXml(step.scriptFile)}</value></ifl:property>` : ''}
+                ${step.mappingName ? `<ifl:property><key>mappinguri</key><value>${escapeXml('dir://mmap/src/main/resources/mapping/' + step.mappingName + '.mmap')}</value></ifl:property>` : ''}
                 ${step.mappingName ? `<ifl:property><key>mappingname</key><value>${escapeXml(step.mappingName)}</value></ifl:property>` : ''}
-                ${step.mappingPath ? `<ifl:property><key>mappingpath</key><value>${escapeXml(step.mappingPath)}</value></ifl:property>` : ''}
+                ${step.mappingName ? `<ifl:property><key>mappingpath</key><value>${escapeXml(step.mappingPath || "src/main/resources/mapping/" + step.mappingName)}</value></ifl:property>` : ''}
             </bpmn2:extensionElements>
             <bpmn2:incoming>${incomingId}</bpmn2:incoming>
             <bpmn2:outgoing>${outgoingId}</bpmn2:outgoing>

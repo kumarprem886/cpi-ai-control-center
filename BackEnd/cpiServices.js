@@ -328,29 +328,66 @@ export async function undeployIflow(iflowId) {
   return data;
 }
 
+// Build a flat catalog of all iFlows (id + name) across all packages for name resolution
+async function buildIflowCatalog() {
+  const packages = await fetchPackages();
+  const catalog = [];
+  await Promise.allSettled(
+    packages.map(async pkg => {
+      const pkgId = pkg.Id || pkg.id;
+      if (!pkgId) return;
+      try {
+        const { data } = await cpiClient.get(
+          `/api/v1/IntegrationPackages('${encodeURIComponent(pkgId)}')/IntegrationDesigntimeArtifacts`
+        );
+        for (const iflow of toArray(data)) {
+          catalog.push({
+            id:   String(iflow.Id   || iflow.id   || ''),
+            name: String(iflow.Name || iflow.name || ''),
+          });
+        }
+      } catch { /* skip inaccessible packages */ }
+    })
+  );
+  return catalog;
+}
+
+// Resolve display name → technical ID (falls back to input if not found)
+function resolveId(catalog, nameOrId) {
+  const lower = nameOrId.toLowerCase().trim();
+  const found = catalog.find(
+    e => e.id.toLowerCase() === lower || e.name.toLowerCase() === lower
+  );
+  return found ? found.id : nameOrId;
+}
+
 export async function batchDeploy(iflowIds) {
+  const catalog = await buildIflowCatalog();
   const results = [];
-  for (const id of iflowIds) {
+  for (const input of iflowIds) {
+    const id = resolveId(catalog, input.trim());
     try {
-      await deployIflow(id.trim());
-      results.push({ id, status: 'deployed', success: true });
+      await deployIflow(id);
+      results.push({ id: input, resolvedId: id, status: 'deployed', success: true });
     } catch (err) {
       const msg = err.response?.data?.error?.message?.value || err.response?.data?.message || err.message;
-      results.push({ id, status: 'failed', success: false, error: msg });
+      results.push({ id: input, resolvedId: id, status: 'failed', success: false, error: msg });
     }
   }
   return results;
 }
 
 export async function batchUndeploy(iflowIds) {
+  const catalog = await buildIflowCatalog();
   const results = [];
-  for (const id of iflowIds) {
+  for (const input of iflowIds) {
+    const id = resolveId(catalog, input.trim());
     try {
-      await undeployIflow(id.trim());
-      results.push({ id, status: 'undeployed', success: true });
+      await undeployIflow(id);
+      results.push({ id: input, resolvedId: id, status: 'undeployed', success: true });
     } catch (err) {
       const msg = err.response?.data?.error?.message?.value || err.response?.data?.message || err.message;
-      results.push({ id, status: 'failed', success: false, error: msg });
+      results.push({ id: input, resolvedId: id, status: 'failed', success: false, error: msg });
     }
   }
   return results;

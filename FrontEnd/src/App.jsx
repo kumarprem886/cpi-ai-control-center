@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Bot, GitBranch, Activity, Shield, BarChart3, Scale,
-  MessageSquare, Package, Rocket, ScrollText, Settings as SettingsIcon,
+  MessageSquare, Rocket, ScrollText, Settings as SettingsIcon,
   Bell, Mail, HelpCircle, Search, ChevronDown, ChevronRight,
   Send, X, CheckCircle2, XCircle, Loader2, AlertTriangle, LogOut,
   RefreshCw, Cpu, Users,
@@ -19,44 +19,45 @@ import Security       from './pages/Security';
 import SettingsPage   from './pages/Settings';
 import UserManagement from './pages/UserManagement';
 import MappingGenerator from './pages/MappingGenerator';
+import Operations from './pages/Operations';
+import MessageProcessing from './pages/MessageProcessing';
+import Deployments from './pages/Deployments';
+import AuditLogs from './pages/AuditLogs';
+import Analytics from './pages/Analytics';
+import Governance from './pages/Governance';
 
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-  { id:'dashboard',   label:'Dashboard',         icon:LayoutDashboard },
-  { id:'ai',          label:'AI Assistant',       icon:Bot },
-  { id:'iflow',       label:'iFlow Studio',       icon:GitBranch },
-  { id:'monitoring',  label:'Monitoring',         icon:Activity,
-    children:[{id:'monitoring',label:'Overview'},{id:'monitoring',label:'Alerts'},{id:'monitoring',label:'Performance'}] },
-  { id:'security',    label:'Security',           icon:Shield,
-    children:[{id:'security',label:'Credentials'},{id:'security',label:'Keystore'},{id:'security',label:'Certificates'}] },
-  { id:'analytics',   label:'Analytics',          icon:BarChart3,
-    children:[{id:'monitoring',label:'Reports'},{id:'monitoring',label:'Trends'},{id:'monitoring',label:'Insights'}] },
-  { id:'governance',  label:'Governance',         icon:Scale,
-    children:[{id:'monitoring',label:'Compliance'},{id:'monitoring',label:'Standards'}] },
-  { id:'messages',    label:'Message Processing', icon:MessageSquare },
-  { id:'artifacts',   label:'Artifacts',          icon:Package },
-  { id:'deployments', label:'Deployments',        icon:Rocket },
-  { id:'auditlogs',   label:'Audit Logs',         icon:ScrollText },
+  { id:'dashboard',   label:'Dashboard',          icon:LayoutDashboard },
+  { id:'iflow',       label:'iFlow Studio',        icon:GitBranch },
+  { id:'monitoring',  label:'Monitoring',          icon:Activity },
+  { id:'security',    label:'Security',            icon:Shield },
+  { id:'analytics',   label:'Analytics',           icon:BarChart3 },
+  { id:'governance',  label:'Governance',          icon:Scale },
+  { id:'messages',    label:'Message Processing',  icon:MessageSquare },
+  { id:'deployments', label:'Deployments',         icon:Rocket },
+  { id:'operations',  label:'Operations',          icon:Cpu },
+  { id:'auditlogs',   label:'Audit Logs',          icon:ScrollText },
   { id:'users',       label:'User Management',     icon:Users },
   { id:'settings',    label:'Settings',            icon:SettingsIcon },
 ];
 
 const PAGE_MAP = {
-  dashboard: Dashboard,
-  ai: AIAssistant,
-  iflow: IFlowStudio,
-  mapping: MappingGenerator,
-  monitoring: Monitoring,
-  security: Security,
-  settings: SettingsPage,
-  users: UserManagement,
-  messages: Monitoring,
-  artifacts: IFlowStudio,
-  deployments: IFlowStudio,
-  auditlogs: Monitoring,
-  analytics: Monitoring,
-  governance: Monitoring,
+  dashboard:   Dashboard,
+  ai:          AIAssistant,
+  iflow:       IFlowStudio,
+  mapping:     MappingGenerator,
+  monitoring:  Monitoring,
+  security:    Security,
+  analytics:   Analytics,
+  governance:  Governance,
+  messages:    MessageProcessing,
+  deployments: Deployments,
+  operations:  Operations,
+  auditlogs:   AuditLogs,
+  users:       UserManagement,
+  settings:    SettingsPage,
 };
 
 const ENVIRONMENTS = [
