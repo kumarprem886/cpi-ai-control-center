@@ -1,0 +1,17 @@
+# Normalise text files on commit.
+* text=auto
+
+# Shell scripts must stay LF: a CRLF shebang makes Linux (and Business
+# Application Studio) fail with "bad interpreter: /usr/bin/env bash^M".
+*.sh text eol=lf
+
+# Batch files are Windows-only and are most reliable with CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Treat CPI artifacts as binary so Git never rewrites their line endings.
+*.mmap -text
+*.iflw -text
+*.zip binary
+*.xlsx binary
+*.7z binary
