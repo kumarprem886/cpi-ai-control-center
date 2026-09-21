@@ -1,6 +1,16 @@
-node_modules
-generated
-uploads
-*.7z
-*.zip
+# Secrets are injected with `cf set-env`, never uploaded with the droplet.
 .env
+.env.*
+!.env.example
+
+# The nodejs buildpack installs dependencies from package.json on the server.
+node_modules/
+
+# Runtime scratch directories - regenerated on demand, can be large.
+generated/
+uploads/
+
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

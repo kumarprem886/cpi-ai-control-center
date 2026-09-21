@@ -1445,7 +1445,10 @@ function handleError(res, error, context = 'request') {
 // Base routes
 // ======================================================
 
-app.get('/', (_req, res) => {
+app.get('/', (_req, res, next) => {
+  // When a frontend build is present it owns "/"; fall through to the static
+  // middleware registered further down. Backend identity stays on /api/status.
+  if (fs.existsSync(path.join(__dirname, 'public'))) return next();
   res.json({
     success: true,
     name: 'SAP CPI AI Backend',
@@ -2327,10 +2330,9 @@ const FRONTEND_DIST = path.join(__dirname, 'public');
 if (fs.existsSync(FRONTEND_DIST)) {
   app.use(express.static(FRONTEND_DIST));
   // SPA fallback — serve index.html for all non-API routes
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
-    }
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
   });
 }
 
