@@ -13,7 +13,7 @@ and no second route to manage.
 3. Paste the repository URL:
 
    ```
-   https://github.com/MANI-REDDY17/CPI_POC_PROJECT-main_capability.git
+   https://github.com/kumarprem886/cpi-ai-control-center.git
    ```
 
 4. If the repository is private, use a personal access token as the password
