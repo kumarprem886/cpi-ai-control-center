@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '../api.js';
 
-/* â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── helpers ─────────────────────────────────────────── */
 
 function Spinner() {
   return <Loader2 size={16} className="animate-spin text-slate-400" />;
@@ -49,7 +49,7 @@ function RefreshBtn({ onClick, loading }) {
   );
 }
 
-/* â”€â”€â”€ accordion card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── accordion card ──────────────────────────────────── */
 
 function Section({ icon: Icon, title, color, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -85,7 +85,7 @@ function Section({ icon: Icon, title, color, children, defaultOpen = false }) {
   );
 }
 
-/* â”€â”€â”€ 1. Data Stores â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── 1. Data Stores ──────────────────────────────────── */
 
 function DataStoreEntries({ name }) {
   const [entries, setEntries] = useState([]);
@@ -215,7 +215,7 @@ function DataStoresSection() {
   );
 }
 
-/* â”€â”€â”€ 2. Variables â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── 2. Variables ────────────────────────────────────── */
 
 function VariablesSection() {
   const [vars, setVars] = useState([]);
@@ -272,7 +272,7 @@ function VariablesSection() {
   );
 }
 
-/* â”€â”€â”€ 3. Message Store â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── 3. Message Store ────────────────────────────────── */
 
 function MessageStoreSection() {
   const [items, setItems] = useState([]);
@@ -321,7 +321,7 @@ function MessageStoreSection() {
   );
 }
 
-/* â”€â”€â”€ 4. JMS Brokers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── 4. JMS Brokers ──────────────────────────────────── */
 
 function JmsBrokersSection() {
   const [brokers, setBrokers] = useState([]);
@@ -363,7 +363,7 @@ function JmsBrokersSection() {
   );
 }
 
-/* â”€â”€â”€ 5. Tenant Configurations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── 5. Tenant Configurations ───────────────────────── */
 
 function TenantConfigSection() {
   const [configs, setConfigs] = useState([]);
@@ -418,7 +418,7 @@ function TenantConfigSection() {
   );
 }
 
-/* â”€â”€â”€ 6. Log Files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── 6. Log Files ────────────────────────────────────── */
 
 function LogFilesSection() {
   const [logs, setLogs] = useState([]);
@@ -466,7 +466,7 @@ function LogFilesSection() {
   );
 }
 
-/* â”€â”€â”€ page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── page ────────────────────────────────────────────── */
 
 export default function Operations() {
   return (

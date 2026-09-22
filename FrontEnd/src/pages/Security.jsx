@@ -22,7 +22,7 @@ function MaskedValue() {
   const [show, setShow] = useState(false);
   return (
     <span className="inline-flex items-center gap-1.5 font-mono text-xs text-slate-500">
-      {show ? 'p@ssw0rdâ€¢â€¢â€¢â€¢' : 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢'}
+      {show ? 'p@ssw0rd••••' : '••••••••••••'}
       <button onClick={() => setShow(v => !v)} className="text-slate-300 hover:text-slate-500">
         {show ? <EyeOff size={11} /> : <Eye size={11} />}
       </button>
@@ -44,7 +44,7 @@ function TableSkeleton({ cols }) {
   );
 }
 
-/* â”€â”€â”€ Reusable inline Add-form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Reusable inline Add-form ─────────────────────────────────────────────── */
 function AddForm({ fields, onSubmit, onCancel, submitting }) {
   const [vals, setVals] = useState(() => Object.fromEntries(fields.map(f => [f.name, ''])));
   const set = (k, v) => setVals(prev => ({ ...prev, [k]: v }));
@@ -87,7 +87,7 @@ function AddForm({ fields, onSubmit, onCancel, submitting }) {
   );
 }
 
-/* â”€â”€â”€ Secure Parameters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Secure Parameters ─────────────────────────────────────────────────────── */
 function SecureParameters({ addToast }) {
   const [items, setItems]         = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -201,9 +201,9 @@ function SecureParameters({ addToast }) {
                   <tr key={item.ParameterName || i} className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={() => setEditRow({ index: i, item })}>
                     <td className="py-3 px-4 font-medium text-slate-800 flex items-center gap-2">
                       <Settings size={13} className="text-indigo-400 flex-shrink-0" />
-                      {item.ParameterName || 'â€”'}
+                      {item.ParameterName || '—'}
                     </td>
-                    <td className="py-3 px-4 text-slate-500">{item.Description || 'â€”'}</td>
+                    <td className="py-3 px-4 text-slate-500">{item.Description || '—'}</td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                         <button onClick={() => setEditRow({ index: i, item })} className="text-indigo-400 hover:text-indigo-600"><Edit2 size={14} /></button>
@@ -221,7 +221,7 @@ function SecureParameters({ addToast }) {
   );
 }
 
-/* â”€â”€â”€ OAuth Credentials â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── OAuth Credentials ─────────────────────────────────────────────────────── */
 function OAuthCredentials({ addToast }) {
   const [items, setItems]         = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -310,14 +310,14 @@ function OAuthCredentials({ addToast }) {
                 <tr key={item.Name || i} className="border-b border-slate-50 hover:bg-slate-50">
                   <td className="py-3 px-4 font-medium text-slate-800 flex items-center gap-2">
                     <Globe size={13} className="text-indigo-400 flex-shrink-0" />
-                    {item.Name || 'â€”'}
+                    {item.Name || '—'}
                   </td>
                   <td className="py-3 px-4">
                     <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 font-medium">
-                      {item.GrantType || 'â€”'}
+                      {item.GrantType || '—'}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-slate-500 font-mono text-xs truncate max-w-xs">{item.TokenServiceUrl || 'â€”'}</td>
+                  <td className="py-3 px-4 text-slate-500 font-mono text-xs truncate max-w-xs">{item.TokenServiceUrl || '—'}</td>
                   <td className="py-3 px-4">
                     <button onClick={() => handleDelete(item.Name)} className="text-red-400 hover:text-red-600"><Trash2 size={14} /></button>
                   </td>
@@ -331,7 +331,7 @@ function OAuthCredentials({ addToast }) {
   );
 }
 
-/* â”€â”€â”€ Certificate Mappings (read-only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Certificate Mappings (read-only) ───────────────────────────────────────── */
 function CertificateMappings({ addToast }) {
   const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(true);
@@ -380,10 +380,10 @@ function CertificateMappings({ addToast }) {
                 <tr key={item.User || i} className="border-b border-slate-50 hover:bg-slate-50">
                   <td className="py-3 px-4 font-medium text-slate-800 flex items-center gap-2">
                     <FileKey size={13} className="text-indigo-400 flex-shrink-0" />
-                    {item.User || 'â€”'}
+                    {item.User || '—'}
                   </td>
-                  <td className="py-3 px-4 text-slate-500 font-mono text-xs">{item.Certificate || 'â€”'}</td>
-                  <td className="py-3 px-4 text-slate-500">{item.LastModifiedBy || 'â€”'}</td>
+                  <td className="py-3 px-4 text-slate-500 font-mono text-xs">{item.Certificate || '—'}</td>
+                  <td className="py-3 px-4 text-slate-500">{item.LastModifiedBy || '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -394,7 +394,7 @@ function CertificateMappings({ addToast }) {
   );
 }
 
-/* â”€â”€â”€ Number Ranges â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Number Ranges ─────────────────────────────────────────────────────────── */
 function NumberRanges({ addToast }) {
   const [items, setItems]         = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -487,19 +487,19 @@ function NumberRanges({ addToast }) {
                 <tr key={item.Name || i} className="border-b border-slate-50 hover:bg-slate-50">
                   <td className="py-3 px-4 font-medium text-slate-800 flex items-center gap-2">
                     <Hash size={13} className="text-indigo-400 flex-shrink-0" />
-                    {item.Name || 'â€”'}
+                    {item.Name || '—'}
                   </td>
-                  <td className="py-3 px-4 text-slate-500">{item.Description || 'â€”'}</td>
-                  <td className="py-3 px-4 font-mono text-xs text-slate-600">{item.MinValue ?? 'â€”'}</td>
-                  <td className="py-3 px-4 font-mono text-xs text-slate-600">{item.MaxValue ?? 'â€”'}</td>
-                  <td className="py-3 px-4 font-mono text-xs text-emerald-600 font-semibold">{item.CurrentValue ?? 'â€”'}</td>
-                  <td className="py-3 px-4 text-slate-500">{item.FieldLength ?? 'â€”'}</td>
+                  <td className="py-3 px-4 text-slate-500">{item.Description || '—'}</td>
+                  <td className="py-3 px-4 font-mono text-xs text-slate-600">{item.MinValue ?? '—'}</td>
+                  <td className="py-3 px-4 font-mono text-xs text-slate-600">{item.MaxValue ?? '—'}</td>
+                  <td className="py-3 px-4 font-mono text-xs text-emerald-600 font-semibold">{item.CurrentValue ?? '—'}</td>
+                  <td className="py-3 px-4 text-slate-500">{item.FieldLength ?? '—'}</td>
                   <td className="py-3 px-4">
                     {item.Rotate != null ? (
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.Rotate ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'}`}>
                         {item.Rotate ? 'Yes' : 'No'}
                       </span>
-                    ) : 'â€”'}
+                    ) : '—'}
                   </td>
                   <td className="py-3 px-4">
                     <button onClick={() => handleDelete(item.Name)} className="text-red-400 hover:text-red-600"><Trash2 size={14} /></button>
@@ -514,7 +514,7 @@ function NumberRanges({ addToast }) {
   );
 }
 
-/* â”€â”€â”€ Access Policies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Access Policies ───────────────────────────────────────────────────────── */
 function AccessPolicies({ addToast }) {
   const [items, setItems]         = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -599,9 +599,9 @@ function AccessPolicies({ addToast }) {
                 <tr key={item.Id || item.RoleName || i} className="border-b border-slate-50 hover:bg-slate-50">
                   <td className="py-3 px-4 font-medium text-slate-800 flex items-center gap-2">
                     <ShieldCheck size={13} className="text-indigo-400 flex-shrink-0" />
-                    {item.RoleName || 'â€”'}
+                    {item.RoleName || '—'}
                   </td>
-                  <td className="py-3 px-4 text-slate-500">{item.Description || 'â€”'}</td>
+                  <td className="py-3 px-4 text-slate-500">{item.Description || '—'}</td>
                   <td className="py-3 px-4">
                     <button onClick={() => handleDelete(item.Id ?? item.RoleName, item.RoleName)} className="text-red-400 hover:text-red-600"><Trash2 size={14} /></button>
                   </td>
@@ -615,7 +615,7 @@ function AccessPolicies({ addToast }) {
   );
 }
 
-/* â”€â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Main Page ─────────────────────────────────────────────────────────────── */
 export default function Security({ addToast }) {
   const [activeTab, setActiveTab] = useState('credentials');
   const [credentials, setCredentials] = useState([]);
@@ -728,14 +728,14 @@ export default function Security({ addToast }) {
                     <tr key={cred.Name || i} className="border-b border-slate-50 hover:bg-slate-50">
                       <td className="py-3 px-4 font-medium text-slate-800 flex items-center gap-2">
                         <Shield size={13} className="text-indigo-400 flex-shrink-0" />
-                        {cred.Name || 'â€”'}
+                        {cred.Name || '—'}
                       </td>
                       <td className="py-3 px-4">
                         <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 font-medium">
                           {cred.Kind || cred.Type || 'Credential'}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-slate-500">{cred.Description || 'â€”'}</td>
+                      <td className="py-3 px-4 text-slate-500">{cred.Description || '—'}</td>
                       <td className="py-3 px-4"><MaskedValue /></td>
                     </tr>
                   ))}
@@ -782,21 +782,21 @@ export default function Security({ addToast }) {
                       <tr key={entry.Alias || i} className="border-b border-slate-50 hover:bg-slate-50">
                         <td className="py-3 px-4 font-medium text-slate-800 flex items-center gap-2">
                           <Lock size={13} className="text-indigo-400 flex-shrink-0" />
-                          {entry.Alias || 'â€”'}
+                          {entry.Alias || '—'}
                         </td>
                         <td className="py-3 px-4">
                           <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
-                            {entry.Type || entry.KeyType || 'â€”'}
+                            {entry.Type || entry.KeyType || '—'}
                           </span>
                         </td>
                         <td className="py-3 px-4">
                           {validUntil ? (
                             <span className={`text-xs font-medium ${expired ? 'text-red-600' : 'text-emerald-600'}`}>
-                              {expired ? 'âš  ' : ''}{new Date(validUntil).toLocaleDateString()}
+                              {expired ? '⚠ ' : ''}{new Date(validUntil).toLocaleDateString()}
                             </span>
-                          ) : <span className="text-slate-400 text-xs">â€”</span>}
+                          ) : <span className="text-slate-400 text-xs">—</span>}
                         </td>
-                        <td className="py-3 px-4 text-slate-500">{entry.Owner || entry.Subject || 'â€”'}</td>
+                        <td className="py-3 px-4 text-slate-500">{entry.Owner || entry.Subject || '—'}</td>
                       </tr>
                     );
                   })}
@@ -807,7 +807,7 @@ export default function Security({ addToast }) {
         </div>
       )}
 
-      {/* New sections â€” each renders its own card */}
+      {/* New sections — each renders its own card */}
       {activeTab === 'secure-params'   && <SecureParameters   addToast={addToast} />}
       {activeTab === 'oauth-creds'     && <OAuthCredentials   addToast={addToast} />}
       {activeTab === 'cert-mappings'   && <CertificateMappings addToast={addToast} />}

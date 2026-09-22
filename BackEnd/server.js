@@ -280,9 +280,43 @@ function extractJsonObject(text) {
   return safeJsonParse(match[0]);
 }
 
+// CPI serialises timestamps two ways that JavaScript cannot parse directly:
+// the OData V2 form "/Date(1789772767558)/" and, on some fields, bare epoch
+// milliseconds as a string. new Date() yields Invalid Date for both, so
+// normalise to ISO here rather than in every page that renders a date.
+const ODATA_DATE = /^\/Date\((-?\d+)([+-]\d{4})?\)\/$/;
+
+function normalizeCpiDates(item) {
+  if (!item || typeof item !== 'object') return item;
+
+  const out = Array.isArray(item) ? [] : {};
+  for (const [key, value] of Object.entries(item)) {
+    if (typeof value === 'string') {
+      const odata = value.match(ODATA_DATE);
+      if (odata) {
+        const d = new Date(Number(odata[1]));
+        out[key] = isNaN(d) ? value : d.toISOString();
+        continue;
+      }
+      // Only date-named keys, so ids and numeric codes are left untouched.
+      if (/(time|date)$/i.test(key) && /^\d{10,19}$/.test(value)) {
+        const d = new Date(Number(value));
+        out[key] = isNaN(d) ? value : d.toISOString();
+        continue;
+      }
+      out[key] = value;
+    } else if (value && typeof value === 'object') {
+      out[key] = normalizeCpiDates(value);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
 function toArray(data) {
-  if (Array.isArray(data)) return data;
-  return data?.d?.results || data?.value || [];
+  const arr = Array.isArray(data) ? data : (data?.d?.results || data?.value || []);
+  return arr.map(normalizeCpiDates);
 }
 
 function num(val) {
@@ -295,9 +329,14 @@ function parseDateFlexible(v) {
   if (v instanceof Date && !isNaN(v)) return v;
 
   if (typeof v === 'string') {
-    const sapEpoch = v.match(/\/Date\((\d+)\)\//);
+    const sapEpoch = v.match(/\/Date\((-?\d+)([+-]\d{4})?\)\//);
     if (sapEpoch) {
       const d = new Date(Number(sapEpoch[1]));
+      return isNaN(d) ? null : d;
+    }
+
+    if (/^\d{10,19}$/.test(v)) {
+      const d = new Date(Number(v));
       return isNaN(d) ? null : d;
     }
 

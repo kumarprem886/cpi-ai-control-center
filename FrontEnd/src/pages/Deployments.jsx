@@ -35,7 +35,7 @@ function TypeBadge({ type }) {
   const cls = TYPE_STYLES[type] || 'bg-slate-100 text-slate-600';
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${cls}`}>
-      {type || 'â€”'}
+      {type || '—'}
     </span>
   );
 }
@@ -207,7 +207,7 @@ export default function Deployments({ addToast }) {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search by name or IDâ€¦"
+              placeholder="Search by name or ID…"
               className="w-full pl-8 pr-4 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
             />
           </div>
@@ -227,7 +227,7 @@ export default function Deployments({ addToast }) {
           {loading ? (
             <div className="flex items-center justify-center py-16 gap-3 text-slate-400">
               <Loader2 size={24} className="animate-spin" />
-              <span className="text-sm">Loading deploymentsâ€¦</span>
+              <span className="text-sm">Loading deployments…</span>
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-16 text-slate-400">
@@ -266,7 +266,7 @@ export default function Deployments({ addToast }) {
                           onClick={() => toggleRow(rowId)}
                         >
                           <td className="py-3 px-5 font-medium text-slate-800 max-w-[200px] truncate">
-                            {artifact.Name || 'â€”'}
+                            {artifact.Name || '—'}
                           </td>
                           <td className="py-3 px-5">
                             <TypeBadge type={artifact.Type} />
@@ -275,13 +275,13 @@ export default function Deployments({ addToast }) {
                             <StatusPill status={artifact.Status} />
                           </td>
                           <td className="py-3 px-5 text-slate-500 text-xs font-mono">
-                            {artifact.Version || 'â€”'}
+                            {artifact.Version || '—'}
                           </td>
                           <td className="py-3 px-5 text-slate-500">
-                            {artifact.DeployedBy || 'â€”'}
+                            {artifact.DeployedBy || '—'}
                           </td>
                           <td className="py-3 px-5 text-slate-400 text-xs whitespace-nowrap">
-                            {artifact.DeployedOn ? new Date(artifact.DeployedOn).toLocaleString() : 'â€”'}
+                            {artifact.DeployedOn ? new Date(artifact.DeployedOn).toLocaleString() : '—'}
                           </td>
                           <td className="py-3 px-5" onClick={e => e.stopPropagation()}>
                             <button

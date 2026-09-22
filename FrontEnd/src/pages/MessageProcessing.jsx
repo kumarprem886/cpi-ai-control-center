@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare, RefreshCw, Loader2, AlertTriangle,
@@ -286,9 +286,8 @@ export default function MessageProcessing({ addToast }) {
                       const rowId = msg.MessageGuid || msg.Id || i;
                       const isExpanded = expandedRow === rowId;
                       return (
-                        <>
+                        <Fragment key={rowId}>
                           <tr
-                            key={rowId}
                             className={`border-b border-slate-50 cursor-pointer transition-colors
                               ${isExpanded ? 'bg-indigo-50' : i % 2 === 0 ? 'hover:bg-slate-50' : 'bg-slate-50/40 hover:bg-slate-100/60'}`}
                             onClick={() => toggleRow(rowId)}
@@ -329,7 +328,7 @@ export default function MessageProcessing({ addToast }) {
                           <AnimatePresence>
                             {isExpanded && <ExpandedDetail key={rowId + '_exp'} msg={msg} />}
                           </AnimatePresence>
-                        </>
+                        </Fragment>
                       );
                     })
                   )}
