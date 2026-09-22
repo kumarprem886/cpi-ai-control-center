@@ -38,11 +38,13 @@ export async function buildIflowFromTemplate(spec) {
 
   const zipPath = path.join(GENERATED_DIR, `${iflowName}.zip`);
 
-  await zipProjectContents(tempProjectDir, zipPath);
-
-  console.log('[TEMPLATE] ZIP created at:', zipPath);
-
-  await fse.remove(tempProjectDir);
+  try {
+    await zipProjectContents(tempProjectDir, zipPath);
+    console.log('[TEMPLATE] ZIP created at:', zipPath);
+  } finally {
+    // Always clean up, or a failed build leaves its scratch directory behind.
+    await fse.remove(tempProjectDir).catch(() => {});
+  }
 
   return {
     fileName: path.basename(zipPath),

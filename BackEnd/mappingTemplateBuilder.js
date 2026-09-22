@@ -266,8 +266,12 @@ export async function buildMappingZip(mappingName, rows, aiDecisions = null) {
   fs.writeFileSync(path.join(xsdDir, tgtXsd), buildXsd(rows, tgtRoot, 'target'), 'utf-8');
 
   const zipPath = path.join(GENERATED_DIR, `${safeName}.zip`);
-  await zipFolder(tempDir, zipPath);
-  await fse.remove(tempDir);
+  try {
+    await zipFolder(tempDir, zipPath);
+  } finally {
+    // Always clean up, or a failed build leaves its scratch directory behind.
+    await fse.remove(tempDir).catch(() => {});
+  }
   return { fileName: `${safeName}.zip`, zipPath };
 }
 
@@ -508,7 +512,7 @@ function bFunc(dst, spec, srcPaths, d, y) {
 
 // Types the AI may return that have no fname confirmed by the corpus. A direct
 // mapping keeps the artifact loadable; a guessed fname would not.
-export const UNVERIFIED_TYPES = new Set([
+const UNVERIFIED_TYPES = new Set([
   'indexOf', 'lastIndexOf', 'contains', 'startsWith', 'endsWith', 'reverseString',
   'numberToString', 'splitByRegExp', 'notExists', 'notEqualS', 'lessThan',
   'greaterThanOrEqual', 'lessThanOrEqual', 'multiply', 'modulo', 'floor',
@@ -523,7 +527,14 @@ function dispatch(type, dst, src, defSrc, d, y) {
 
   const spec = FN_REGISTRY[type];
   const fallback = () => (defSrc ? bDirect(dst, defSrc, 200, y, 50, y) : null);
-  if (!spec) return fallback();
+  if (!spec) {
+    if (UNVERIFIED_TYPES.has(type)) {
+      console.warn('[MAPPING] ' + type + ' has no corpus-verified CPI function; ' + dst + ' falls back to a direct mapping');
+    } else if (type !== 'direct') {
+      console.warn('[MAPPING] unknown function type ' + type + '; ' + dst + ' falls back to a direct mapping');
+    }
+    return fallback();
+  }
 
   const srcPaths = spec.literalArgs ? [] : (Array.isArray(d?.sourcePaths) && d.sourcePaths.length
     ? d.sourcePaths

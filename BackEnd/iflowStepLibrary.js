@@ -537,22 +537,12 @@ export const STEP_LIBRARY = {
   }
 };
 
-// A conditional branch off a Router is a sequenceFlow carrying these props,
+// Conditional branching off a Router is not generated yet. When it is, the
+// branch is a <bpmn2:sequenceFlow> carrying expressionType (NonXML for
+// ${property.X} = 'v', XML for a raw XPath), componentVersion 1.0 and
+// cmdVariantUri ctype::FlowstepVariant/cname::GatewayRoute/version::1.0.0,
 // plus a sibling <bpmn2:conditionExpression> after extensionElements. The
-// branch WITHOUT a conditionExpression is the default route.
-export const GATEWAY_ROUTE = {
-  componentVersion: '1.0',
-  cmdVariantUri: FLOWSTEP('GatewayRoute', '1.0.0'),
-  expressionTypes: ['NonXML', 'XML']
-};
-
-// Palette steps absent from the corpus. Requested by name, these resolve to
-// nothing and the builder warns rather than guessing a cmdVariantUri.
-export const UNVERIFIED_STEPS = [
-  'OPERATION_MAPPING', 'IDOC_SPLITTER', 'EDI_SPLITTER', 'PKCS7_SPLITTER',
-  'TAR_SPLITTER', 'XML_TO_EDI', 'EDI_TO_XML', 'GZIP_ENCODER', 'GZIP_DECODER',
-  'TERMINATE_MESSAGE', 'ESCALATION_START_EVENT', 'XML_SIGNER', 'MAIL_ADAPTER'
-];
+// branch that omits that element is the default route.
 
 // Legacy/loose names accepted from the spec builder.
 export const STEP_ALIASES = {
