@@ -1,4 +1,4 @@
-﻿import 'dotenv/config';
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -2390,7 +2390,7 @@ app.get('/api/cpi/packages/:packageId/valuemappings', async (req, res) => {
     const { data } = await cpiClient.get(
       `/api/v1/IntegrationPackages('${packageId}')/IntegrationDesigntimeArtifacts?$filter=ArtifactType eq 'ValueMapping'`
     );
-    const results = data?.d?.results || data?.value || [];
+    const results = toArray(data);
     return res.json({ success: true, results });
   } catch (error) {
     return handleError(res, error, 'GET /api/cpi/packages/:packageId/valuemappings');
@@ -2403,7 +2403,7 @@ app.get('/api/cpi/packages/:packageId/messagemappings', async (req, res) => {
     const { data } = await cpiClient.get(
       `/api/v1/IntegrationPackages('${packageId}')/IntegrationDesigntimeArtifacts?$filter=ArtifactType eq 'MessageMapping'`
     );
-    const results = data?.d?.results || data?.value || [];
+    const results = toArray(data);
     return res.json({ success: true, results });
   } catch (error) {
     return handleError(res, error, 'GET /api/cpi/packages/:packageId/messagemappings');
@@ -2416,7 +2416,7 @@ app.get('/api/cpi/packages/:packageId/scriptcollections', async (req, res) => {
     const { data } = await cpiClient.get(
       `/api/v1/IntegrationPackages('${packageId}')/IntegrationDesigntimeArtifacts?$filter=ArtifactType eq 'ScriptCollection'`
     );
-    const results = data?.d?.results || data?.value || [];
+    const results = toArray(data);
     return res.json({ success: true, results });
   } catch (error) {
     return handleError(res, error, 'GET /api/cpi/packages/:packageId/scriptcollections');
@@ -2429,7 +2429,7 @@ app.get('/api/cpi/packages/:packageId/functionlibraries', async (req, res) => {
     const { data } = await cpiClient.get(
       `/api/v1/IntegrationPackages('${packageId}')/IntegrationDesigntimeArtifacts?$filter=ArtifactType eq 'FunctionLibrary'`
     );
-    const results = data?.d?.results || data?.value || [];
+    const results = toArray(data);
     return res.json({ success: true, results });
   } catch (error) {
     return handleError(res, error, 'GET /api/cpi/packages/:packageId/functionlibraries');
@@ -2725,7 +2725,7 @@ app.post('/api/cpi/artifacts/bulk-undeploy', async (req, res) => {
 app.get('/api/cpi/security/secure-parameters', async (req, res) => {
   try {
     const { data } = await cpiClient.get('/api/v1/SecureParameters');
-    const results = data?.d?.results || data?.value || [];
+    const results = toArray(data);
     return res.json({ success: true, results });
   } catch (error) {
     return handleError(res, error, 'GET /api/cpi/security/secure-parameters');
@@ -2769,7 +2769,7 @@ app.delete('/api/cpi/security/secure-parameters/:name', async (req, res) => {
 app.get('/api/cpi/security/oauth-credentials', async (req, res) => {
   try {
     const { data } = await cpiClient.get('/api/v1/OAuthCredentials');
-    const results = data?.d?.results || data?.value || [];
+    const results = toArray(data);
     return res.json({ success: true, results });
   } catch (error) {
     return handleError(res, error, 'GET /api/cpi/security/oauth-credentials');
@@ -2800,7 +2800,7 @@ app.delete('/api/cpi/security/oauth-credentials/:name', async (req, res) => {
 app.get('/api/cpi/security/certificate-mappings', async (req, res) => {
   try {
     const { data } = await cpiClient.get('/api/v1/CertificateUserMappings');
-    const results = data?.d?.results || data?.value || [];
+    const results = toArray(data);
     return res.json({ success: true, results });
   } catch (error) {
     return handleError(res, error, 'GET /api/cpi/security/certificate-mappings');
@@ -2810,7 +2810,7 @@ app.get('/api/cpi/security/certificate-mappings', async (req, res) => {
 app.get('/api/cpi/security/number-ranges', async (req, res) => {
   try {
     const { data } = await cpiClient.get('/api/v1/NumberRanges');
-    const results = data?.d?.results || data?.value || [];
+    const results = toArray(data);
     return res.json({ success: true, results });
   } catch (error) {
     return handleError(res, error, 'GET /api/cpi/security/number-ranges');
@@ -2853,7 +2853,7 @@ app.delete('/api/cpi/security/number-ranges/:name', async (req, res) => {
 app.get('/api/cpi/security/access-policies', async (req, res) => {
   try {
     const { data } = await cpiClient.get('/api/v1/AccessPolicies');
-    const results = data?.d?.results || data?.value || [];
+    const results = toArray(data);
     return res.json({ success: true, results });
   } catch (error) {
     return handleError(res, error, 'GET /api/cpi/security/access-policies');
@@ -2886,7 +2886,7 @@ app.delete('/api/cpi/security/access-policies/:id', async (req, res) => {
 app.get('/api/cpi/datastores', async (req, res) => {
   try {
     const { data } = await cpiClient.get('/api/v1/DataStores');
-    const results = data?.d?.results || data?.value || [];
+    const results = toArray(data);
     return res.json({ success: true, results });
   } catch (error) {
     return handleError(res, error, 'GET /api/cpi/datastores');
@@ -2897,7 +2897,7 @@ app.get('/api/cpi/datastores/:name/entries', async (req, res) => {
   try {
     const { name } = req.params;
     const { data } = await cpiClient.get(`/api/v1/DataStores('${name}')/Entries`);
-    const results = data?.d?.results || data?.value || [];
+    const results = toArray(data);
     return res.json({ success: true, results });
   } catch (error) {
     return handleError(res, error, 'GET /api/cpi/datastores/:name/entries');
@@ -2914,21 +2914,52 @@ app.delete('/api/cpi/datastores/:name/entries/:id', async (req, res) => {
   }
 });
 
-app.get('/api/cpi/message-store-entries', async (req, res) => {
+const UNSUPPORTED_MARKERS = [
+  'not implemented',
+  'could not find an entity set',
+  'not supported',
+  'runtime location',
+];
+
+function isUnsupportedByTenant(err) {
+  const status = err?.response?.status;
+  const msg = cpiErrorMessage(err).toLowerCase();
+  if (status === 501) return true;
+  return UNSUPPORTED_MARKERS.some((m) => msg.includes(m));
+}
+
+// Wraps a CPI list endpoint that may simply not exist on this tenant.
+async function respondWithOptionalCollection(res, url, context) {
   try {
-    const top = req.query.$top ? `?$top=${encodeURIComponent(req.query.$top)}` : '';
-    const { data } = await cpiClient.get(`/api/v1/MessageStoreEntries${top}`);
-    const results = data?.d?.results || data?.value || [];
-    return res.json({ success: true, results });
+    const { data } = await cpiClient.get(url);
+    return res.json({ success: true, available: true, results: toArray(data) });
   } catch (error) {
-    return handleError(res, error, 'GET /api/cpi/message-store-entries');
+    if (isUnsupportedByTenant(error)) {
+      console.warn('[CPI] ' + context + ' is not available on this tenant: ' + cpiErrorMessage(error));
+      return res.json({
+        success: true,
+        available: false,
+        unavailableReason: cpiErrorMessage(error),
+        results: [],
+      });
+    }
+    return handleError(res, error, context);
   }
+}
+
+app.get('/api/cpi/message-store-entries', async (req, res) => {
+  const top = req.query.$top ? `?$top=${encodeURIComponent(req.query.$top)}` : '';
+  return respondWithOptionalCollection(
+    res,
+    `/api/v1/MessageStoreEntries${top}`,
+    'GET /api/cpi/message-store-entries'
+  );
 });
 
 app.get('/api/cpi/variables', async (req, res) => {
   try {
     const { data } = await cpiClient.get('/api/v1/Variables');
-    const results = data?.d?.results || data?.value || [];
+    const results = toArray(data);
     return res.json({ success: true, results });
   } catch (error) {
     return handleError(res, error, 'GET /api/cpi/variables');
@@ -2946,29 +2977,17 @@ app.delete('/api/cpi/variables/:flowId/:varName', async (req, res) => {
 });
 
 app.get('/api/cpi/tenant-configurations', async (req, res) => {
-  try {
-    const { data } = await cpiClient.get('/api/v1/TenantConfigurations');
-    const results = data?.d?.results || data?.value || [];
-    return res.json({ success: true, results });
-  } catch (error) {
-    return handleError(res, error, 'GET /api/cpi/tenant-configurations');
-  }
+  return respondWithOptionalCollection(res, '/api/v1/TenantConfigurations', 'GET /api/cpi/tenant-configurations');
 });
 
 app.get('/api/cpi/jms-brokers', async (req, res) => {
-  try {
-    const { data } = await cpiClient.get('/api/v1/JmsBrokers');
-    const results = data?.d?.results || data?.value || [];
-    return res.json({ success: true, results });
-  } catch (error) {
-    return handleError(res, error, 'GET /api/cpi/jms-brokers');
-  }
+  return respondWithOptionalCollection(res, '/api/v1/JmsBrokers', 'GET /api/cpi/jms-brokers');
 });
 
 app.get('/api/cpi/log-files', async (req, res) => {
   try {
     const { data } = await cpiClient.get('/api/v1/LogFiles');
-    const results = data?.d?.results || data?.value || [];
+    const results = toArray(data);
     return res.json({ success: true, results });
   } catch (error) {
     return handleError(res, error, 'GET /api/cpi/log-files');

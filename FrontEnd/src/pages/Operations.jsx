@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Database, Variable, MessageSquare, Radio, Settings, FileText,
@@ -183,9 +183,8 @@ function DataStoresSection() {
             <thead><tr><Th>Name</Th><Th>Visibility</Th><Th>Type</Th></tr></thead>
             <tbody>
               {stores.map(s => (
-                <>
+                <Fragment key={s.DataStoreName}>
                   <tr
-                    key={s.DataStoreName}
                     className="hover:bg-slate-50 cursor-pointer"
                     onClick={() => setExpanded(expanded === s.DataStoreName ? null : s.DataStoreName)}
                   >
@@ -205,7 +204,7 @@ function DataStoresSection() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

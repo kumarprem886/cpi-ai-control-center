@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Rocket, RefreshCw, Loader2, AlertTriangle,
@@ -258,9 +258,8 @@ export default function Deployments({ addToast }) {
                     const isExpanded = expandedRow === rowId;
                     const isUndeploying = undeploying === artifact.Id;
                     return (
-                      <>
+                      <Fragment key={rowId}>
                         <tr
-                          key={rowId}
                           className={`border-b border-slate-50 cursor-pointer transition-colors
                             ${isExpanded ? 'bg-indigo-50' : i % 2 === 0 ? 'hover:bg-slate-50' : 'bg-slate-50/50 hover:bg-slate-100/70'}`}
                           onClick={() => toggleRow(rowId)}
@@ -304,7 +303,7 @@ export default function Deployments({ addToast }) {
                             <ExpandedRow key={rowId + '_exp'} artifact={artifact} colSpan={8} />
                           )}
                         </AnimatePresence>
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>
