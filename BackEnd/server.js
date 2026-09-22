@@ -2628,7 +2628,12 @@ async function runBulkArtifactAction(items, action) {
       }
       outcomes.push({ id, ok: true });
     } catch (err) {
-      outcomes.push({ id, ok: false, error: cpiErrorMessage(err) });
+      const status = err?.response?.status;
+      if (action === 'undeploy' && status === 404) {
+        outcomes.push({ id, ok: false, skipped: true, error: 'not currently deployed' });
+      } else {
+        outcomes.push({ id, ok: false, error: cpiErrorMessage(err) });
+      }
     }
   }
   return outcomes;
@@ -2642,10 +2647,11 @@ app.post('/api/cpi/artifacts/bulk-deploy', async (req, res) => {
     }
     const outcomes = await runBulkArtifactAction(items, 'deploy');
     cache.del('runtime_artifacts');
-    const failed = outcomes.filter((o) => !o.ok);
+    const failed = outcomes.filter((o) => !o.ok && !o.skipped);
     return res.json({
       success: failed.length === 0,
       deployed: outcomes.filter((o) => o.ok).length,
+      skipped: outcomes.filter((o) => o.skipped).length,
       failed: failed.length,
       outcomes,
     });
@@ -2662,10 +2668,11 @@ app.post('/api/cpi/artifacts/bulk-undeploy', async (req, res) => {
     }
     const outcomes = await runBulkArtifactAction(items, 'undeploy');
     cache.del('runtime_artifacts');
-    const failed = outcomes.filter((o) => !o.ok);
+    const failed = outcomes.filter((o) => !o.ok && !o.skipped);
     return res.json({
       success: failed.length === 0,
       undeployed: outcomes.filter((o) => o.ok).length,
+      skipped: outcomes.filter((o) => o.skipped).length,
       failed: failed.length,
       outcomes,
     });

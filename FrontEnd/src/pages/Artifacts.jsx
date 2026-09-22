@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search, RefreshCw, Loader2, AlertTriangle, Rocket, PowerOff,
-  CheckCircle2, XCircle, Package, FileCode, Braces, Table2, Library,
+  CheckCircle2, XCircle, MinusCircle, Package, FileCode, Braces, Table2, Library,
 } from 'lucide-react';
 import { searchArtifacts, bulkDeployArtifacts, bulkUndeployArtifacts } from '../api';
 
@@ -95,14 +95,28 @@ export default function Artifacts({ addToast }) {
     if (!picked.length) return;
 
     const verb = action === 'deploy' ? 'Deploy' : 'Undeploy';
-    const names = picked.slice(0, 8).map(r => '  • ' + r.name).join('\n');
-    const more = picked.length > 8 ? `\n  …and ${picked.length - 8} more` : '';
-    if (!window.confirm(`${verb} ${picked.length} artifact(s)?\n\n${names}${more}`)) return;
+
+    // Undeploying something already stopped is a no-op that CPI answers with a
+    // bare 404. Say so up front instead of reporting it as a failure after.
+    const actionable = action === 'undeploy' && runtimeAvailable
+      ? picked.filter(r => r.deployed)
+      : picked;
+    const noop = picked.length - actionable.length;
+
+    if (!actionable.length) {
+      addToast?.(`Nothing to undeploy — ${noop === 1 ? 'that artifact is' : 'those artifacts are'} not deployed`, 'info');
+      return;
+    }
+
+    const names = actionable.slice(0, 8).map(r => '  • ' + r.name).join('\n');
+    const more = actionable.length > 8 ? `\n  …and ${actionable.length - 8} more` : '';
+    const skipNote = noop ? `\n\n${noop} already not deployed and will be skipped.` : '';
+    if (!window.confirm(`${verb} ${actionable.length} artifact(s)?\n\n${names}${more}${skipNote}`)) return;
 
     setBusy(action);
     setOutcomes(null);
     try {
-      const payload = picked.map(r => ({ id: r.id, version: r.version }));
+      const payload = actionable.map(r => ({ id: r.id, version: r.version }));
       const data = action === 'deploy'
         ? await bulkDeployArtifacts(payload)
         : await bulkUndeployArtifacts(payload);
@@ -110,10 +124,13 @@ export default function Artifacts({ addToast }) {
       const okCount = action === 'deploy' ? data.deployed : data.undeployed;
       setOutcomes({ action, outcomes: data.outcomes || [] });
 
+      const skipped = (data.skipped || 0) + noop;
+      const skipText = skipped ? `, ${skipped} skipped` : '';
+
       if (data.failed) {
-        addToast?.(`${verb}: ${okCount} succeeded, ${data.failed} failed`, 'warning');
+        addToast?.(`${verb}: ${okCount} succeeded, ${data.failed} failed${skipText}`, 'warning');
       } else {
-        addToast?.(`${verb}ed ${okCount} artifact(s)`, 'success');
+        addToast?.(`${verb}ed ${okCount} artifact(s)${skipText}`, 'success');
         setSelected(new Set());
       }
       await load({ refresh: true });
@@ -252,9 +269,15 @@ export default function Artifacts({ addToast }) {
             <div key={o.id} className="flex items-start gap-2 text-sm">
               {o.ok
                 ? <CheckCircle2 size={14} className="text-emerald-600 mt-0.5 flex-shrink-0" />
-                : <XCircle size={14} className="text-red-600 mt-0.5 flex-shrink-0" />}
+                : o.skipped
+                  ? <MinusCircle size={14} className="text-slate-400 mt-0.5 flex-shrink-0" />
+                  : <XCircle size={14} className="text-red-600 mt-0.5 flex-shrink-0" />}
               <span className="font-mono text-xs text-slate-700">{o.id}</span>
-              {!o.ok && <span className="text-xs text-red-600">— {o.error}</span>}
+              {!o.ok && (
+                <span className={`text-xs ${o.skipped ? 'text-slate-500' : 'text-red-600'}`}>
+                  — {o.error}
+                </span>
+              )}
             </div>
           ))}
         </div>
