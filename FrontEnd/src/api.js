@@ -62,6 +62,25 @@ export async function deployArtifact(id, version = 'active') {
   return data;
 }
 
+// Cross-package artifact search. The backend keeps a cached index because CPI
+// has no tenant-wide artifact query; pass refresh to rebuild it.
+export async function searchArtifacts({ q = '', type = 'ALL', packageId = 'ALL', refresh = false } = {}) {
+  const { data } = await api.get('/cpi/artifacts/search', {
+    params: { q, type, packageId, refresh },
+  });
+  return data;
+}
+
+export async function bulkDeployArtifacts(artifacts) {
+  const { data } = await api.post('/cpi/artifacts/bulk-deploy', { artifacts });
+  return data;
+}
+
+export async function bulkUndeployArtifacts(artifacts) {
+  const { data } = await api.post('/cpi/artifacts/bulk-undeploy', { artifacts });
+  return data;
+}
+
 export const apiClient = api;
 
 export async function importZipToCpi(packageId, artifactId, artifactName, artifactType, file) {

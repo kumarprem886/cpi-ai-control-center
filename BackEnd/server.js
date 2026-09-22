@@ -434,12 +434,21 @@ async function cachedGet(key, url) {
 // CPI fetch helpers
 // ======================================================
 
+// CPI error payloads vary between shapes: {error:{message:{value}}},
+// {error:{message}}, or a bare {message}. Check all of them rather than
+// picking one and silently failing to recognise the rest.
+function cpiErrorMessage(err) {
+  const d = err?.response?.data;
+  const m = d?.error?.message;
+  return String(m?.value ?? m ?? d?.message ?? d?.error ?? err?.message ?? '');
+}
+
 async function fetchRuntimeArtifacts() {
   try {
     const data = await cachedGet('runtime_artifacts', '/api/v1/IntegrationRuntimeArtifacts');
     return toArray(data);
   } catch (err) {
-    const msg = String(err.response?.data?.error?.message || err.message || '');
+    const msg = cpiErrorMessage(err);
     // Trial tenants often don't have a provisioned runtime location — return empty gracefully
     if (msg.includes('runtime location') || msg.includes('not supported')) {
       console.warn('[CPI] IntegrationRuntimeArtifacts not available on this tenant:', msg);
@@ -1426,11 +1435,7 @@ async function writeZipFromSpec(spec) {
 
 function handleError(res, error, context = 'request') {
   const status = error.response?.status || 500;
-  const details =
-    error.response?.data?.error?.message?.value ||
-    error.response?.data?.message ||
-    error.message ||
-    'Unexpected error';
+  const details = cpiErrorMessage(error) || 'Unexpected error';
 
   console.error(`[ERROR] ${context}:`, details);
 
@@ -2451,6 +2456,221 @@ app.delete('/api/cpi/artifacts/undeploy/:id', async (req, res) => {
     return res.json({ success: true, message: `Artifact '${id}' undeployed.` });
   } catch (error) {
     return handleError(res, error, 'DELETE /api/cpi/artifacts/undeploy/:id');
+  }
+});
+
+// ======================================================
+// Cross-package artifact search + bulk deploy/undeploy
+//
+// CPI cannot help here: the design-time artifact collection is only
+// reachable through a package navigation, $filter returns 501 on
+// IntegrationPackages, and $search is rejected outright. So the index
+// below enumerates packages, fans out one request each, and caches the
+// flattened result; matching then happens in memory.
+// ======================================================
+
+const ARTIFACT_TYPES = ['IFlow', 'ValueMapping', 'MessageMapping', 'ScriptCollection', 'FunctionLibrary'];
+const ARTIFACT_INDEX_KEY = 'artifact_index';
+
+async function buildArtifactIndex() {
+  const cached = cache.get(ARTIFACT_INDEX_KEY);
+  if (cached !== undefined) return cached;
+
+  const packages = await fetchPackages();
+
+  // allSettled so one inaccessible package cannot blank the whole index.
+  const perPackage = await Promise.allSettled(
+    packages.map((pkg) => {
+      const id = pkg.Id || pkg.id;
+      return cpiClient
+        .get(`/api/v1/IntegrationPackages('${id}')/IntegrationDesigntimeArtifacts`)
+        .then((r) => ({ items: toArray(r.data) }));
+    })
+  );
+
+  const artifacts = [];
+  const failedPackages = [];
+
+  perPackage.forEach((outcome, i) => {
+    const pkg = packages[i];
+    const packageId = pkg.Id || pkg.id || '';
+    if (outcome.status !== 'fulfilled') {
+      failedPackages.push(packageId);
+      return;
+    }
+    for (const item of outcome.value.items) {
+      // ArtifactType is absent on some tenants; IFlow is the practical default.
+      const type = item.Type || item.ArtifactType || 'IFlow';
+      artifacts.push({
+        id: item.Id || '',
+        name: item.Name || item.Id || '',
+        type: ARTIFACT_TYPES.includes(type) ? type : 'IFlow',
+        version: item.Version || 'active',
+        description: item.Description || '',
+        packageId,
+        packageName: pkg.Name || packageId,
+      });
+    }
+  });
+
+  const index = {
+    artifacts,
+    packageCount: packages.length,
+    failedPackages,
+    builtAt: new Date().toISOString(),
+  };
+  cache.set(ARTIFACT_INDEX_KEY, index);
+  return index;
+}
+
+// Supports * and ? wildcards. Space-separated terms must all match, which
+// makes "batch s4" behave the way people expect from a search box.
+function buildMatcher(query) {
+  const terms = String(query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) return null;
+
+  const regexes = terms.map((term) => {
+    const escaped = term.replace(/[.+^${}()|[\]\\]/g, (ch) => '\\' + ch);
+    const pattern = escaped.replace(/\*/g, '.*').replace(/\?/g, '.');
+    // A plain word matches anywhere; once a term carries a wildcard the user
+    // is describing the whole value, so anchor it end to end.
+    return /[*?]/.test(term) ? new RegExp('^' + pattern + '$') : new RegExp(pattern);
+  });
+
+  return (artifact) => {
+    const haystacks = [artifact.name, artifact.id, artifact.packageName, artifact.description]
+      .map((v) => String(v || '').toLowerCase());
+    return regexes.every((re) => haystacks.some((h) => re.test(h)));
+  };
+}
+
+app.get('/api/cpi/artifacts/search', async (req, res) => {
+  try {
+    if (String(req.query.refresh) === 'true') cache.del(ARTIFACT_INDEX_KEY);
+
+    const q = String(req.query.q || '').trim();
+    const type = String(req.query.type || 'ALL');
+    const packageId = String(req.query.packageId || 'ALL');
+
+    const index = await buildArtifactIndex();
+
+    // Deployed state lets the UI show what an action would actually change.
+    // Tenants without a provisioned runtime location simply lack it.
+    let runtime = [];
+    let runtimeAvailable = true;
+    try {
+      runtime = await fetchRuntimeArtifacts();
+    } catch {
+      runtimeAvailable = false;
+    }
+    const deployed = new Map(runtime.map((r) => [r.Id, r]));
+
+    let results = index.artifacts;
+    if (type !== 'ALL') results = results.filter((a) => a.type === type);
+    if (packageId !== 'ALL') results = results.filter((a) => a.packageId === packageId);
+
+    const matcher = buildMatcher(q);
+    if (matcher) results = results.filter(matcher);
+
+    results = results
+      .map((a) => {
+        const rt = deployed.get(a.id);
+        return { ...a, deployed: Boolean(rt), deployedStatus: rt?.Status || null };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const counts = ARTIFACT_TYPES.reduce(
+      (acc, t) => {
+        acc[t] = index.artifacts.filter((a) => a.type === t).length;
+        return acc;
+      },
+      { ALL: index.artifacts.length }
+    );
+
+    return res.json({
+      success: true,
+      count: results.length,
+      totalIndexed: index.artifacts.length,
+      counts,
+      packages: [...new Map(index.artifacts.map((a) => [a.packageId, a.packageName])).entries()]
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+      failedPackages: index.failedPackages,
+      runtimeAvailable,
+      builtAt: index.builtAt,
+      results,
+    });
+  } catch (error) {
+    return handleError(res, error, 'GET /api/cpi/artifacts/search');
+  }
+});
+
+// Bulk actions report per-artifact outcomes instead of failing the whole
+// batch, so one bad artifact cannot hide what did and did not happen.
+async function runBulkArtifactAction(items, action) {
+  const outcomes = [];
+  for (const item of items) {
+    const id = typeof item === 'string' ? item : item?.id;
+    const version = (typeof item === 'object' && item?.version) || 'active';
+    if (!id) {
+      outcomes.push({ id: null, ok: false, error: 'missing id' });
+      continue;
+    }
+    try {
+      if (action === 'deploy') {
+        await cpiClient.post(
+          `/api/v1/DeployIntegrationDesigntimeArtifact?Id='${id}'&Version='${version}'`,
+          null,
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+      } else {
+        await cpiClient.delete(`/api/v1/IntegrationRuntimeArtifacts('${id}')`);
+      }
+      outcomes.push({ id, ok: true });
+    } catch (err) {
+      outcomes.push({ id, ok: false, error: cpiErrorMessage(err) });
+    }
+  }
+  return outcomes;
+}
+
+app.post('/api/cpi/artifacts/bulk-deploy', async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.artifacts) ? req.body.artifacts : [];
+    if (!items.length) {
+      return res.status(400).json({ success: false, error: 'artifacts must be a non-empty array' });
+    }
+    const outcomes = await runBulkArtifactAction(items, 'deploy');
+    cache.del('runtime_artifacts');
+    const failed = outcomes.filter((o) => !o.ok);
+    return res.json({
+      success: failed.length === 0,
+      deployed: outcomes.filter((o) => o.ok).length,
+      failed: failed.length,
+      outcomes,
+    });
+  } catch (error) {
+    return handleError(res, error, 'POST /api/cpi/artifacts/bulk-deploy');
+  }
+});
+
+app.post('/api/cpi/artifacts/bulk-undeploy', async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.artifacts) ? req.body.artifacts : [];
+    if (!items.length) {
+      return res.status(400).json({ success: false, error: 'artifacts must be a non-empty array' });
+    }
+    const outcomes = await runBulkArtifactAction(items, 'undeploy');
+    cache.del('runtime_artifacts');
+    const failed = outcomes.filter((o) => !o.ok);
+    return res.json({
+      success: failed.length === 0,
+      undeployed: outcomes.filter((o) => o.ok).length,
+      failed: failed.length,
+      outcomes,
+    });
+  } catch (error) {
+    return handleError(res, error, 'POST /api/cpi/artifacts/bulk-undeploy');
   }
 });
 

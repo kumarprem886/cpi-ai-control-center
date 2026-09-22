@@ -5,7 +5,7 @@ import {
   MessageSquare, Rocket, ScrollText, Settings as SettingsIcon,
   Bell, Mail, HelpCircle, Search, ChevronDown, ChevronRight,
   Send, X, CheckCircle2, XCircle, Loader2, AlertTriangle, LogOut,
-  RefreshCw, Cpu, Users,
+  RefreshCw, Cpu, Users, Boxes,
 } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { aiChat, getMessages, getPackages, getRuntimeArtifacts, getDashboardStats } from './api';
@@ -25,6 +25,7 @@ import Deployments from './pages/Deployments';
 import AuditLogs from './pages/AuditLogs';
 import Analytics from './pages/Analytics';
 import Governance from './pages/Governance';
+import Artifacts from './pages/Artifacts';
 
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { id:'analytics',   label:'Analytics',           icon:BarChart3 },
   { id:'governance',  label:'Governance',          icon:Scale },
   { id:'messages',    label:'Message Processing',  icon:MessageSquare },
+  { id:'artifacts',   label:'Artifacts',           icon:Boxes },
   { id:'deployments', label:'Deployments',         icon:Rocket },
   { id:'operations',  label:'Operations',          icon:Cpu },
   { id:'auditlogs',   label:'Audit Logs',          icon:ScrollText },
@@ -53,6 +55,7 @@ const PAGE_MAP = {
   analytics:   Analytics,
   governance:  Governance,
   messages:    MessageProcessing,
+  artifacts:   Artifacts,
   deployments: Deployments,
   operations:  Operations,
   auditlogs:   AuditLogs,
